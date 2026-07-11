@@ -10,12 +10,11 @@ const {
 } = require('discord.js');
 const fs = require('fs');
 
-// ─── Client Setup ────────────────────────────────────────────────────────────
+// ─── Client Setup ─────────────────────────────────────────────────────────────
+// No MessageContent intent needed — we use slash commands only!
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.Guilds
     ]
 });
 
@@ -57,10 +56,13 @@ async function updatePlayerWidget(userId) {
 
 // ─── Slash Command Definitions ────────────────────────────────────────────────
 const slashCommands = [
+
+    // Help
     new SlashCommandBuilder()
         .setName('help')
         .setDescription('📖 Shows all Re:START bot commands and how to use them'),
 
+    // Widget
     new SlashCommandBuilder()
         .setName('setstat')
         .setDescription('✏️ Set a custom stat on your profile widget')
@@ -78,12 +80,56 @@ const slashCommands = [
             opt.setName('value')
                 .setDescription('The stat value (e.g. Chill)')
                 .setRequired(true)),
+
+    // Fun: 8ball
+    new SlashCommandBuilder()
+        .setName('8ball')
+        .setDescription('🎱 Ask the magic 8-ball a yes/no question')
+        .addStringOption(opt =>
+            opt.setName('question')
+                .setDescription('Your question')
+                .setRequired(true)),
+
+    // Fun: coinflip
+    new SlashCommandBuilder()
+        .setName('coinflip')
+        .setDescription('🪙 Flip a coin — heads or tails'),
+
+    // Fun: roll
+    new SlashCommandBuilder()
+        .setName('roll')
+        .setDescription('🎲 Roll a dice')
+        .addIntegerOption(opt =>
+            opt.setName('sides')
+                .setDescription('Number of sides (2–100, default: 6)')
+                .setRequired(false)
+                .setMinValue(2)
+                .setMaxValue(100)),
+
+    // Fun: vibe
+    new SlashCommandBuilder()
+        .setName('vibe')
+        .setDescription('🎭 Get your random vibe check for the day'),
+
+    // Fun: rps
+    new SlashCommandBuilder()
+        .setName('rps')
+        .setDescription('🪨 Play Rock Paper Scissors vs the bot')
+        .addStringOption(opt =>
+            opt.setName('choice')
+                .setDescription('Your move')
+                .setRequired(true)
+                .addChoices(
+                    { name: '🪨 Rock',     value: 'rock'     },
+                    { name: '📄 Paper',    value: 'paper'    },
+                    { name: '✂️ Scissors', value: 'scissors' }
+                )),
+
 ].map(cmd => cmd.toJSON());
 
 // ─── Ready Event — Register Slash Commands ────────────────────────────────────
 client.once('ready', async () => {
     console.log(`✨ Re:START bot is online as ${client.user.tag}!`);
-
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
@@ -102,39 +148,39 @@ client.on('interactionCreate', async (interaction) => {
         const embed = new EmbedBuilder()
             .setColor(0x9b59b6)
             .setTitle('✨ Re:START Bot — Command Guide')
-            .setDescription('Here\'s everything this bot can do for you!\n\u200b')
+            .setDescription('Here\'s everything this bot can do!\n\u200b')
             .addFields(
                 {
                     name: '🪪 Profile Widget',
                     value: [
-                        '`/setstat <slot> <title> <value>` — Set a custom stat on your widget (slots 1–6)',
-                        '`!setstat <slot> <Title> | <Value>` — Same thing, prefix style',
+                        '`/setstat <slot> <title> <value>` — Set a custom stat on your widget',
                         '',
+                        'You have **6 slots** to customize. Set any label + value you want!',
                         '**Example:** `/setstat 1 Vibe Chill`',
-                        '**Example:** `!setstat 2 Currently | Vibing`',
+                        '**Example:** `/setstat 3 Currently Valorant`',
                     ].join('\n')
                 },
                 { name: '\u200b', value: '\u200b' },
                 {
-                    name: '🎱 Fun Commands',
+                    name: '🎉 Fun Commands',
                     value: [
-                        '`!8ball <question>` — Ask the magic 8-ball a yes/no question',
-                        '`!coinflip` — Flip a coin (heads or tails)',
-                        '`!roll [sides]` — Roll a dice (default: 6 sides, max: 100)',
-                        '`!vibe` — Get your random vibe check for the day',
-                        '`!rps <rock/paper/scissors>` — Play Rock Paper Scissors vs the bot',
+                        '`/8ball <question>` — Ask the magic 8-ball',
+                        '`/coinflip` — Flip a coin (heads or tails)',
+                        '`/roll [sides]` — Roll a dice (default d6, up to d100)',
+                        '`/vibe` — Get your vibe check for the day',
+                        '`/rps <rock/paper/scissors>` — Play vs the bot',
                     ].join('\n')
                 },
                 { name: '\u200b', value: '\u200b' },
                 {
-                    name: '💡 Tips',
-                    value: 'Users must **authorize the app** via OAuth2 for widget updates to work on their profile.',
+                    name: '💡 Note',
+                    value: 'You must **authorize the app** via OAuth2 for widget updates to show on your profile.',
                 }
             )
-            .setFooter({ text: 'Re:START Bot  •  Made with 💜' })
+            .setFooter({ text: 'Re:START Bot  •  Made with 💜 by aishikichu' })
             .setTimestamp();
 
-        await interaction.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 
     // ── /setstat ───────────────────────────────────────────────────────────────
@@ -161,45 +207,12 @@ client.on('interactionCreate', async (interaction) => {
 
         await interaction.reply({ embeds: [embed], ephemeral: true });
         await updatePlayerWidget(userId);
-    }
-});
-
-// ─── Prefix Command Handler ───────────────────────────────────────────────────
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
-    const content = message.content.trim();
-
-    // ── !setstat ───────────────────────────────────────────────────────────────
-    if (content.startsWith('!setstat ')) {
-        const args = content.slice(9).trim();
-        const slotNumber = args.charAt(0);
-
-        if (!['1','2','3','4','5','6'].includes(slotNumber))
-            return message.reply('❌ Choose a slot between 1–6. Example: `!setstat 1 Vibe | Chill`');
-
-        const rest = args.slice(1).trim();
-        if (!rest.includes('|'))
-            return message.reply('❌ Use a `|` to separate Title and Value. Example: `!setstat 1 Vibe | Chill`');
-
-        const [titleText, valueText] = rest.split('|').map(s => s.trim());
-        const userId = message.author.id;
-        const savedData = getUserData();
-
-        if (!savedData[userId]) savedData[userId] = {};
-        savedData[userId][`stat${slotNumber}_title`] = titleText;
-        savedData[userId][`stat${slotNumber}_val`]   = valueText;
-        saveUserData(savedData);
-
-        await message.reply(`✅ Slot #${slotNumber} updated!\n**Title:** ${titleText}\n**Value:** ${valueText}\n*Pushing to your widget...*`);
-        await updatePlayerWidget(userId);
         return;
     }
 
-    // ── !8ball ─────────────────────────────────────────────────────────────────
-    if (content.startsWith('!8ball ')) {
-        const question = content.slice(7).trim();
-        if (!question) return message.reply('❓ Ask me a question! Example: `!8ball Will I win today?`');
-
+    // ── /8ball ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === '8ball') {
+        const question = interaction.options.getString('question');
         const answers = [
             '🟢 It is certain.',
             '🟢 Without a doubt.',
@@ -226,34 +239,33 @@ client.on('messageCreate', async (message) => {
                 { name: 'Answer',   value: `**${answer}**` }
             );
 
-        return message.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 
-    // ── !coinflip ──────────────────────────────────────────────────────────────
-    if (content === '!coinflip') {
-        const result = Math.random() < 0.5 ? '🪙 Heads!' : '🪙 Tails!';
+    // ── /coinflip ──────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'coinflip') {
+        const result = Math.random() < 0.5 ? 'Heads! 🪙' : 'Tails! 🪙';
         const embed = new EmbedBuilder()
             .setColor(0xf1c40f)
             .setTitle('Coin Flip')
             .setDescription(`The coin landed on... **${result}**`);
-        return message.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 
-    // ── !roll ──────────────────────────────────────────────────────────────────
-    if (content.startsWith('!roll')) {
-        const sidesArg = parseInt(content.split(' ')[1]);
-        const sides = (!isNaN(sidesArg) && sidesArg >= 2 && sidesArg <= 100) ? sidesArg : 6;
+    // ── /roll ──────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'roll') {
+        const sides  = interaction.options.getInteger('sides') ?? 6;
         const result = Math.floor(Math.random() * sides) + 1;
 
         const embed = new EmbedBuilder()
             .setColor(0xe74c3c)
             .setTitle('🎲 Dice Roll')
             .setDescription(`Rolling a **d${sides}**...\nYou got: **${result}**`);
-        return message.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 
-    // ── !vibe ──────────────────────────────────────────────────────────────────
-    if (content === '!vibe') {
+    // ── /vibe ──────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'vibe') {
         const vibes = [
             { label: '💤 Sleepy but making it work', color: 0x8e44ad },
             { label: '🔥 Absolutely on fire today',   color: 0xe74c3c },
@@ -271,46 +283,39 @@ client.on('messageCreate', async (message) => {
         const embed = new EmbedBuilder()
             .setColor(v.color)
             .setTitle('🎭 Vibe Check')
-            .setDescription(`${message.author}, your vibe today is:\n\n# ${v.label}`);
-        return message.reply({ embeds: [embed] });
+            .setDescription(`${interaction.user}, your vibe today is:\n\n# ${v.label}`);
+        return interaction.reply({ embeds: [embed] });
     }
 
-    // ── !rps ───────────────────────────────────────────────────────────────────
-    if (content.startsWith('!rps ')) {
-        const choices = ['rock', 'paper', 'scissors'];
-        const emojis  = { rock: '🪨', paper: '📄', scissors: '✂️' };
-        const playerRaw = content.split(' ')[1]?.toLowerCase();
-
-        if (!choices.includes(playerRaw))
-            return message.reply('❌ Choose `rock`, `paper`, or `scissors`. Example: `!rps rock`');
-
+    // ── /rps ───────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'rps') {
+        const choices   = ['rock', 'paper', 'scissors'];
+        const emojis    = { rock: '🪨', paper: '📄', scissors: '✂️' };
+        const playerRaw = interaction.options.getString('choice');
         const botChoice = choices[Math.floor(Math.random() * 3)];
 
         let result, color;
         if (playerRaw === botChoice) {
-            result = "🤝 It's a tie!";
-            color  = 0xf1c40f;
+            result = "🤝 It's a tie!";  color = 0xf1c40f;
         } else if (
             (playerRaw === 'rock'     && botChoice === 'scissors') ||
             (playerRaw === 'paper'    && botChoice === 'rock')     ||
             (playerRaw === 'scissors' && botChoice === 'paper')
         ) {
-            result = '🎉 You win!';
-            color  = 0x2ecc71;
+            result = '🎉 You win!';     color = 0x2ecc71;
         } else {
-            result = '😈 Bot wins!';
-            color  = 0xe74c3c;
+            result = '😈 Bot wins!';    color = 0xe74c3c;
         }
 
         const embed = new EmbedBuilder()
             .setColor(color)
             .setTitle('Rock Paper Scissors')
             .addFields(
-                { name: 'You',  value: `${emojis[playerRaw]} ${playerRaw}`,  inline: true },
-                { name: 'Bot',  value: `${emojis[botChoice]} ${botChoice}`,  inline: true },
+                { name: 'You',    value: `${emojis[playerRaw]} ${playerRaw}`, inline: true },
+                { name: 'Bot',    value: `${emojis[botChoice]} ${botChoice}`, inline: true },
                 { name: 'Result', value: `**${result}**` }
             );
-        return message.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 });
 
@@ -318,7 +323,6 @@ client.on('messageCreate', async (message) => {
 client.login(process.env.DISCORD_TOKEN);
 
 // ─── Keep-Alive HTTP Server ───────────────────────────────────────────────────
-// Keeps the bot alive on hosting platforms (Render, Railway, Glitch, etc.)
 const http = require('http');
 http.createServer((req, res) => {
     res.write("I'm alive!");
