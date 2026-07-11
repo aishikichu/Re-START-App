@@ -13,6 +13,8 @@ const {
     PermissionFlagsBits
 } = require('discord.js');
 const fs = require('fs');
+const express = require('express');
+const app = express();
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
@@ -29,13 +31,44 @@ function saveData(data) {
 }
 
 // ─── Widget Updater ───────────────────────────────────────────────────────────
-// Uses the /identities/0/profile PATCH endpoint — exact format: {"data":{"dynamic":[...]}}
+// Uses the /identities/0/profile PATCH endpoint via user's personal Bearer token
 async function updatePlayerWidget(userId) {
     const data = getData();
     const u = (data.users || {})[userId] || {};
 
-    // Build dynamic fields — each saved stat title becomes the field name
-    // These names must match variables configured in the Discord Developer Portal
+    if (!u.tokens || !u.tokens.access_token) {
+        console.log(`⚠️ No access token for ${userId}. Cannot update widget.`);
+        return { success: false, reason: 'unauthorized' };
+    }
+
+    // Refresh token if expired
+    if (Date.now() >= (u.tokens.expires_at - 60000)) {
+        try {
+            console.log(`🔄 Refreshing token for ${userId}...`);
+            const refreshRes = await fetch('https://discord.com/api/oauth2/token', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    client_id: client.user.id,
+                    client_secret: process.env.DISCORD_CLIENT_SECRET,
+                    grant_type: 'refresh_token',
+                    refresh_token: u.tokens.refresh_token
+                }),
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+            const refreshData = await refreshRes.json();
+            if (refreshData.error) throw new Error(refreshData.error);
+            
+            u.tokens.access_token = refreshData.access_token;
+            u.tokens.refresh_token = refreshData.refresh_token;
+            u.tokens.expires_at = Date.now() + (refreshData.expires_in * 1000);
+            saveData(data);
+        } catch (err) {
+            console.error(`❌ Failed to refresh token for ${userId}:`, err.message);
+            return { success: false, reason: 'expired' };
+        }
+    }
+
+    // Build dynamic fields
     const dynamicFields = [];
     for (let i = 1; i <= 6; i++) {
         const title = u[`stat${i}_title`];
@@ -45,26 +78,28 @@ async function updatePlayerWidget(userId) {
         }
     }
 
-    if (dynamicFields.length === 0) {
-        console.log(`⚠️ No stats set for ${userId}, skipping widget update.`);
-        return;
-    }
+    if (dynamicFields.length === 0) return { success: true, ignored: true };
 
     try {
-        await client.rest.patch(
-            `/applications/${client.user.id}/users/${userId}/identities/0/profile`,
-            {
-                body: {
-                    data: { dynamic: dynamicFields }
-                }
-            }
-        );
+        const patchRes = await fetch(`https://discord.com/api/v10/applications/${client.user.id}/users/${userId}/identities/0/profile`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${u.tokens.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: { dynamic: dynamicFields } })
+        });
+        
+        if (!patchRes.ok) {
+            const errData = await patchRes.json();
+            throw new Error(`Status ${patchRes.status}: ${JSON.stringify(errData)}`);
+        }
+        
         console.log(`✅ Widget updated for ${userId} with fields:`, dynamicFields.map(f => f.name));
+        return { success: true };
     } catch (err) {
-        console.error(`❌ Widget update FAILED for ${userId}`);
-        console.error(`   Status : ${err.status}`);
-        console.error(`   Message: ${err.message}`);
-        console.error(`   Body   :`, JSON.stringify(err.rawError ?? err));
+        console.error(`❌ Widget update FAILED for ${userId}:`, err.message);
+        return { success: false, reason: 'api_error' };
     }
 }
 
@@ -285,6 +320,20 @@ client.on('interactionCreate', async (interaction) => {
         data.users[userId][`stat${slot}_val`]   = value;
         saveData(data);
 
+        // Check if user is authorized and update widget
+        const authStatus = await updatePlayerWidget(userId);
+
+        if (authStatus && !authStatus.success && (authStatus.reason === 'unauthorized' || authStatus.reason === 'expired')) {
+            const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&redirect_uri=https%3A%2F%2Fre-start-app.onrender.com%2Fcallback&response_type=code&scope=identify+openid+sdk.social_layer+application_identities.write+rpc&state=${userId}`;
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle('⚠️ Link Your Discord Account')
+                .setDescription(`Your stat was saved, but I need permission to update your profile widget!\n\n[**Click here to Authorize**](${oauthUrl})\n\n*(You only have to do this once!)*`);
+            
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
         const embed = new EmbedBuilder()
             .setColor(0x2ecc71)
             .setTitle(`✅ Slot #${slot} Updated!`)
@@ -292,11 +341,9 @@ client.on('interactionCreate', async (interaction) => {
                 { name: 'Title', value: title, inline: true },
                 { name: 'Value', value: value, inline: true }
             )
-            .setFooter({ text: 'Pushing to your widget...' });
+            .setFooter({ text: authStatus && !authStatus.success ? '⚠️ Stat saved, but widget API error occurred' : 'Pushed to your widget!' });
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-        await updatePlayerWidget(userId);
-        return;
+        return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
     // ── /8ball ────────────────────────────────────────────────────────────────
@@ -517,11 +564,58 @@ client.on('interactionCreate', async (interaction) => {
 // ─── Login ────────────────────────────────────────────────────────────────────
 client.login(process.env.DISCORD_TOKEN);
 
-// ─── Keep-Alive HTTP Server ───────────────────────────────────────────────────
-const http = require('http');
-http.createServer((req, res) => {
-    res.write("I'm alive!");
-    res.end();
-}).listen(process.env.PORT || 3000, () => {
-    console.log(`🌐 Keep-alive server running on port ${process.env.PORT || 3000}`);
+// ─── OAuth2 Web Server ─────────────────────────────────────────────────────────
+app.get('/', (req, res) => res.send("Re:START Bot is running!"));
+
+app.get('/callback', async (req, res) => {
+    const code = req.query.code;
+    const userId = req.query.state;
+    if (!code || !userId) return res.send("❌ Missing code or state parameter.");
+
+    try {
+        const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+            method: 'POST',
+            body: new URLSearchParams({
+                client_id: client.user.id,
+                client_secret: process.env.DISCORD_CLIENT_SECRET,
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: 'https://re-start-app.onrender.com/callback'
+            }),
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        
+        const tokenData = await tokenRes.json();
+        if (tokenData.error) {
+            return res.send(`❌ OAuth2 Error: ${tokenData.error_description || tokenData.error}`);
+        }
+
+        const data = getData();
+        if (!data.users) data.users = {};
+        if (!data.users[userId]) data.users[userId] = {};
+        
+        data.users[userId].tokens = {
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token,
+            expires_at: Date.now() + (tokenData.expires_in * 1000)
+        };
+        saveData(data);
+
+        await updatePlayerWidget(userId);
+
+        res.send(`
+            <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+                <h1 style="color: #2ecc71;">✅ Authorization Successful!</h1>
+                <p>Your Discord account has been linked and your widget was updated.</p>
+                <p>You can close this tab and go back to Discord.</p>
+            </div>
+        `);
+    } catch (err) {
+        console.error("OAuth2 Callback Error:", err);
+        res.send("❌ Internal server error during authorization.");
+    }
+});
+
+app.listen(process.env.PORT || 3000, () => {
+    console.log(`🌐 Express OAuth2 server running on port ${process.env.PORT || 3000}`);
 });
