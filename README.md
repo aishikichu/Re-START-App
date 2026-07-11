@@ -73,6 +73,9 @@ Each command:
 
 ## 🚀 Getting Started
 
+### 📖 User Guide
+Need help setting up the widget on your profile? Check out the **[Step-by-Step Instructions Document](https://docs.google.com/document/d/1ZFgmAhg50SeUP5QhYaNafr691wUi6MXR229VzbaZmyg/edit?usp=sharing)** with full screenshots!
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org) v18 or higher

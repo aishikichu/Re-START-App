@@ -15,6 +15,8 @@ const {
 const fs = require('fs');
 const express = require('express');
 const app = express();
+const Filter = require('bad-words');
+const profanityFilter = new Filter();
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
@@ -284,8 +286,13 @@ client.on('interactionCreate', async (interaction) => {
     // ── /setstat ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'setstat') {
         const slot  = interaction.options.getInteger('slot');
-        const title = interaction.options.getString('title').trim();
-        const value = interaction.options.getString('value').trim();
+        const title = interaction.options.getString('title');
+        const value = interaction.options.getString('value');
+
+        if (profanityFilter.isProfane(title) || profanityFilter.isProfane(value)) {
+            return interaction.reply({ content: '❌ **Invalid input:** Your text contains blocked words. Please keep it family-friendly!', flags: 64 });
+        }
+
         const userId = interaction.user.id;
 
         const data = getData();
