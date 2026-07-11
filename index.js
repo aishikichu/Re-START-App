@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load .env variables first
+
 const {
     Client,
     GatewayIntentBits,
