@@ -33,7 +33,7 @@ async function updatePlayerWidget(userId) {
     const data = getData();
     const u = (data.users || {})[userId] || {};
     try {
-        await client.rest.put(
+        const result = await client.rest.put(
             `/applications/${client.user.id}/users/${userId}/profile`,
             {
                 body: {
@@ -46,8 +46,12 @@ async function updatePlayerWidget(userId) {
                 }
             }
         );
-    } catch {
-        console.log(`Could not update widget for ${userId} — they may not have authorized the app.`);
+        console.log(`✅ Widget updated for ${userId}:`, JSON.stringify(result));
+    } catch (err) {
+        console.error(`❌ Widget update FAILED for ${userId}`);
+        console.error(`   Status : ${err.status}`);
+        console.error(`   Message: ${err.message}`);
+        console.error(`   Body   :`, JSON.stringify(err.rawError ?? err));
     }
 }
 
