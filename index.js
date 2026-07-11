@@ -16,6 +16,7 @@ const fs = require('fs');
 const express = require('express');
 const app = express();
 const Filter = require('bad-words');
+const mongoose = require('mongoose');
 const profanityFilter = new Filter();
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
@@ -548,6 +549,15 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // ─── Login ────────────────────────────────────────────────────────────────────
+// Connect to MongoDB and log in the bot
+if (!process.env.MONGO_URI) {
+    console.error('❌ Missing MONGO_URI in environment variables!');
+} else {
+    mongoose.connect(process.env.MONGO_URI)
+        .then(() => console.log('✅ Connected to MongoDB Database!'))
+        .catch(err => console.error('❌ Failed to connect to MongoDB:', err));
+}
+
 client.login(process.env.DISCORD_TOKEN);
 
 // ─── OAuth2 Web Server ─────────────────────────────────────────────────────────
