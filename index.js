@@ -20,6 +20,7 @@ const Filter = require('bad-words');
 const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const profanityFilter = new Filter();
+const gachaPool = require('./gachaPool.json'); // Import the list of Booth avatars
 
 const WIDGET_CHANNEL_ID = '1525308184389222400';
 const ECONOMY_CHANNEL_ID = '1525505480808730694';
@@ -202,6 +203,19 @@ const slashCommands = [
         .addIntegerOption(opt => 
             opt.setName('amount').setDescription('Amount of coins to give').setRequired(true).setMinValue(1)),
 
+    // ── Gacha System ──────────────────────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('shop')
+        .setDescription('View the server shop (Buy Gacha Tokens!)'),
+    new SlashCommandBuilder()
+        .setName('buy')
+        .setDescription('Buy an item from the shop')
+        .addStringOption(opt => 
+            opt.setName('item').setDescription('Item to buy').setRequired(true).addChoices({ name: 'Gacha Token (500 Coins)', value: 'token' })),
+    new SlashCommandBuilder()
+        .setName('gacha')
+        .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
+
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('setuproles')
@@ -267,6 +281,45 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Could not update your role. Make sure my role is above the target role in Server Settings!', ephemeral: true });
+        }
+    }
+
+    // ── Button: Gacha Claim ───────────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('claim_')) {
+        const parts = interaction.customId.split('_');
+        const modelId = parts[1];
+        const claimerId = interaction.user.id;
+
+        try {
+            // Check if button is already claimed (we can disable it visually, but just in case of race conditions)
+            if (interaction.message.components[0].components[0].disabled) {
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', flags: 64 });
+            }
+
+            let userRecord = await User.findOne({ userId: claimerId });
+            if (!userRecord) userRecord = new User({ userId: claimerId });
+
+            // Add model to inventory
+            userRecord.inventory.push(modelId);
+            await userRecord.save();
+
+            // Disable the button and update message
+            const model = gachaPool.find(m => m.id === modelId);
+            const disabledButton = new ButtonBuilder()
+                .setCustomId('claimed_already')
+                .setLabel(`Claimed by ${interaction.user.username}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true);
+
+            const row = new ActionRowBuilder().addComponents(disabledButton);
+            const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+            embed.setFooter({ text: `💖 Claimed by ${interaction.user.username}` });
+
+            await interaction.update({ embeds: [embed], components: [row] });
+            return;
+        } catch (err) {
+            console.error(err);
+            return interaction.reply({ content: '❌ Error claiming avatar!', flags: 64 });
         }
     }
 
@@ -521,6 +574,98 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred while transferring coins!');
+        }
+    }
+
+    // ── /shop ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'shop') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const embed = new EmbedBuilder()
+            .setColor(0x9b59b6)
+            .setTitle('🛒 Re:START Shop')
+            .setDescription('Welcome to the shop! Use `/buy <item>` to purchase.')
+            .addFields(
+                { name: '🎟️ Gacha Token', value: '**Cost:** 🪙 500 Coins\nUse this token with `/gacha` to roll for Booth avatars!' }
+            );
+        return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── /buy ──────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'buy') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const item = interaction.options.getString('item');
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) userRecord = new User({ userId: interaction.user.id });
+
+            if (item === 'token') {
+                if (userRecord.coins < 500) {
+                    return interaction.editReply(`❌ You don't have enough coins! A Gacha Token costs **🪙 500**. You have **🪙 ${userRecord.coins}**.`);
+                }
+                userRecord.coins -= 500;
+                userRecord.gachaTokens += 1;
+                await userRecord.save();
+                return interaction.editReply(`✅ You successfully bought **1x 🎟️ Gacha Token** for 🪙 500 Coins!\nYou now have **${userRecord.gachaTokens} Tokens**. Use \`/gacha\` to roll!`);
+            }
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while buying the item!');
+        }
+    }
+
+    // ── /gacha ────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'gacha') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || userRecord.gachaTokens < 1) {
+                return interaction.editReply(`❌ You don't have any Gacha Tokens! Buy some in the \`/shop\` using your coins.`);
+            }
+
+            // Deduct token
+            userRecord.gachaTokens -= 1;
+            await userRecord.save();
+
+            // Roll logic (UR: 5%, SR: 15%, R: 30%, C: 50%)
+            const roll = Math.random();
+            let selectedRarity = 'C';
+            if (roll < 0.05) selectedRarity = 'UR';
+            else if (roll < 0.20) selectedRarity = 'SR';
+            else if (roll < 0.50) selectedRarity = 'R';
+
+            // Filter pool by rarity
+            const pool = gachaPool.filter(m => m.rarity === selectedRarity);
+            const model = pool[Math.floor(Math.random() * pool.length)];
+
+            // Color based on rarity
+            const colors = { 'UR': 0xff00ff, 'SR': 0xf1c40f, 'R': 0x3498db, 'C': 0x95a5a6 };
+
+            const embed = new EmbedBuilder()
+                .setColor(colors[model.rarity])
+                .setTitle(`🎰 Gacha Roll by ${interaction.user.username}`)
+                .setDescription(`**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
+                .setImage(model.image)
+                .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
+
+            const claimButton = new ButtonBuilder()
+                .setCustomId(`claim_${model.id}_${Date.now()}`)
+                .setLabel('Claim Avatar')
+                .setEmoji('💖')
+                .setStyle(ButtonStyle.Success);
+
+            const row = new ActionRowBuilder().addComponents(claimButton);
+
+            return interaction.editReply({ embeds: [embed], components: [row] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred during the Gacha roll!');
         }
     }
 

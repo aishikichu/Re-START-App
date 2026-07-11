@@ -1,0 +1,79 @@
+[
+    {
+        "id": "manuka",
+        "name": "Manuka",
+        "rarity": "UR",
+        "value": 2000,
+        "image": "https://placehold.co/400x400/png?text=Manuka+Placeholder"
+    },
+    {
+        "id": "selestia",
+        "name": "Selestia",
+        "rarity": "UR",
+        "value": 2000,
+        "image": "https://placehold.co/400x400/png?text=Selestia+Placeholder"
+    },
+    {
+        "id": "kikyo",
+        "name": "Kikyo",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://placehold.co/400x400/png?text=Kikyo+Placeholder"
+    },
+    {
+        "id": "maya",
+        "name": "Maya",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://placehold.co/400x400/png?text=Maya+Placeholder"
+    },
+    {
+        "id": "moe",
+        "name": "Moe",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://placehold.co/400x400/png?text=Moe+Placeholder"
+    },
+    {
+        "id": "rindo",
+        "name": "Rindo",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://placehold.co/400x400/png?text=Rindo+Placeholder"
+    },
+    {
+        "id": "lime",
+        "name": "Lime",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://placehold.co/400x400/png?text=Lime+Placeholder"
+    },
+    {
+        "id": "karin",
+        "name": "Karin",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://placehold.co/400x400/png?text=Karin+Placeholder"
+    },
+    {
+        "id": "grus",
+        "name": "Grus",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://placehold.co/400x400/png?text=Grus+Placeholder"
+    },
+    {
+        "id": "mint",
+        "name": "Mint",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://placehold.co/400x400/png?text=Mint+Placeholder"
+    },
+    {
+        "id": "milk",
+        "name": "Milk Re:",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://placehold.co/400x400/png?text=Milk+Placeholder"
+    }
+]
