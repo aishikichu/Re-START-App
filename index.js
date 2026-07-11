@@ -65,11 +65,11 @@ async function updatePlayerWidget(userId) {
         console.error(`❌ Widget update FAILED for ${userId}`);
         console.error(`   Status : ${err.status}`);
         
-        // If 403, the user hasn't authorized the bot with the sdk.social_layer scope
-        if (err.status === 403) {
-            return { success: false, reason: 'unauthorized' };
+        // If 403 or 404, the user likely hasn't authorized the bot
+        if (err.status === 403 || err.status === 404 || err.status === 401) {
+            return { success: false, reason: 'unauthorized', status: err.status };
         }
-        return { success: false, reason: 'api_error' };
+        return { success: false, reason: 'api_error', status: err.status, message: err.message };
     }
 }
 
@@ -323,7 +323,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: 'Title', value: title, inline: true },
                 { name: 'Value', value: value, inline: true }
             )
-            .setFooter({ text: authStatus && !authStatus.success ? '⚠️ Stat saved, but widget API error occurred' : 'Pushed to your widget! (Make sure to check your profile)' });
+            .setFooter({ text: authStatus && !authStatus.success ? `⚠️ Widget API Error: ${authStatus.status || 'Unknown'}` : 'Pushed to your widget! (Make sure to check your profile)' });
 
         return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
     }
