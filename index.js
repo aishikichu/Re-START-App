@@ -172,6 +172,11 @@ const slashCommands = [
                     { name: '✂️ Scissors', value: 'scissors' }
                 )),
 
+    // ── Rank ─────────────────────────────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('rank')
+        .setDescription('Check your current Level and XP in the server!'),
+
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('setuproles')
@@ -272,6 +277,7 @@ client.on('interactionCreate', async (interaction) => {
                         '`/roll [sides]` — Roll a dice (default d6, up to d100)',
                         '`/vibe` — Get your vibe check for the day',
                         '`/rps <rock/paper/scissors>` — Play vs the bot',
+                        '`/rank` — Check your server level and XP',
                     ].join('\n')
                 },
                 { name: '\u200b', value: '\u200b' },
@@ -332,6 +338,36 @@ client.on('interactionCreate', async (interaction) => {
             .setFooter({ text: authStatus && !authStatus.success ? `⚠️ Widget API Error: ${authStatus.status || 'Unknown'}` : 'Pushed to your widget! (Make sure to check your profile)' });
 
         return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
+    }
+
+    // ── /rank ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'rank') {
+        await interaction.deferReply();
+        try {
+            if (mongoose.connection.readyState !== 1) {
+                return interaction.editReply('❌ Database is currently connecting. Please try again in a few seconds!');
+            }
+
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) {
+                userRecord = new User({ userId: interaction.user.id });
+                await userRecord.save();
+            }
+
+            const xpNeeded = userRecord.level * 500;
+            
+            const rankEmbed = new EmbedBuilder()
+                .setColor(0x3498db)
+                .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
+                .setTitle(`Level ${userRecord.level}`)
+                .setDescription(`**XP:** ${userRecord.xp} / ${xpNeeded}\n**Coins:** 🪙 ${userRecord.coins}`)
+                .setFooter({ text: 'Keep chatting to earn more XP!' });
+
+            return interaction.editReply({ embeds: [rankEmbed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while fetching your rank!');
+        }
     }
 
     // ── /8ball ────────────────────────────────────────────────────────────────
