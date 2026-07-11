@@ -71,13 +71,13 @@ async function updatePlayerWidget(userId) {
     // Build dynamic fields
     const dynamicFields = [];
     for (let i = 1; i <= 6; i++) {
-        const title = u[`stat${i}_title`];
-        const val   = u[`stat${i}_val`];
-        if (title && val) {
-            // Push title and value as SEPARATE variables matching the widget layout!
-            dynamicFields.push({ type: 1, name: `stat${i}_title`, value: title });
-            dynamicFields.push({ type: 1, name: `stat${i}_val`, value: val });
-        }
+        // If a stat is empty, we must push a placeholder because the Widget Editor 
+        // marks all fields as "REQUIRED" by default!
+        const title = u[`stat${i}_title`] || "-";
+        const val   = u[`stat${i}_val`]   || "-";
+        
+        dynamicFields.push({ type: 1, name: `stat${i}_title`, value: title });
+        dynamicFields.push({ type: 1, name: `stat${i}_val`, value: val });
     }
 
     if (dynamicFields.length === 0) return { success: true, ignored: true };
