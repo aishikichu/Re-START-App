@@ -20,29 +20,50 @@ Users just type a single command in any channel, and their widget updates instan
 
 ---
 
-## 🎮 How it works
+## 🎮 Commands
+
+### 🪪 Profile Widget
 
 Each Discord user gets **6 stat slots** on their profile widget. They can set any title and value they want.
 
-```
-!setstat <slot> <Title> | <Value>
-```
+| Command | Description |
+|---|---|
+| `/setstat <slot> <title> <value>` | Set a widget stat via slash command |
+| `!setstat <slot> <Title> \| <Value>` | Set a widget stat via prefix command |
 
-### Examples
-
+**Examples:**
 ```
-!setstat 1 Vibe | Chill
+/setstat 1 Vibe Chill
 !setstat 2 Currently Playing | Valorant
 !setstat 3 Hours Slept | 3 (send help)
 !setstat 4 Mood | 💀
-!setstat 5 Coffee Count | 7
-!setstat 6 Status | Re:Starting...
 ```
 
 Each command:
 1. 💾 Saves your stat locally to `data.json`
 2. 📡 Immediately pushes the update to Discord's Widget API
 3. ✅ Replies with a confirmation so you know it worked
+
+---
+
+### 🎉 Fun Commands
+
+| Command | Description |
+|---|---|
+| `!8ball <question>` | Ask the magic 8-ball a yes/no question |
+| `!coinflip` | Flip a coin — heads or tails |
+| `!roll [sides]` | Roll a dice (default d6, up to d100) |
+| `!vibe` | Get your random vibe check for the day |
+| `!rps <rock/paper/scissors>` | Play Rock Paper Scissors vs the bot |
+
+**Examples:**
+```
+!8ball Will I win today?
+!coinflip
+!roll 20
+!vibe
+!rps scissors
+```
 
 ---
 
@@ -111,10 +132,6 @@ Make sure these are enabled in the [Discord Developer Portal](https://discord.co
 > ⚠️ Users must also **authorize your app** via OAuth2 for the widget push to work on their profile.
 
 ---
-
-## 🤝 Contributing
-
-Pull requests are welcome! If you have ideas for new features (slash commands, more slots, embeds, etc.) feel free to open an issue or PR.
 
 ---
 
