@@ -17,6 +17,7 @@ const express = require('express');
 const app = express();
 const Filter = require('bad-words');
 const mongoose = require('mongoose');
+const User = require('./models/User'); // Import our new User database schema
 const profanityFilter = new Filter();
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
@@ -545,6 +546,49 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.editReply({
             content: `✅ Issued widget identity for **${target.tag}** (\`${userId}\`)!\nCheck Render logs to confirm it worked.`
         });
+    }
+});
+
+// ─── Chat XP Leveling System ──────────────────────────────────────────────────
+client.on('messageCreate', async (message) => {
+    // Ignore messages from bots or outside of a server
+    if (message.author.bot || !message.guild) return;
+
+    try {
+        // Wait for MongoDB to be fully connected before trying to save XP
+        if (mongoose.connection.readyState !== 1) return;
+
+        // Find the user in the database, or create a new profile for them
+        let userRecord = await User.findOne({ userId: message.author.id });
+        if (!userRecord) {
+            userRecord = new User({ userId: message.author.id });
+        }
+
+        const now = new Date();
+        // Cooldown: Only give XP if they haven't sent a message in the last 60 seconds
+        if (!userRecord.lastMessageDate || (now - userRecord.lastMessageDate) >= 60000) {
+            // Give them a random amount of XP between 15 and 25
+            const xpToAdd = Math.floor(Math.random() * 11) + 15;
+            userRecord.xp += xpToAdd;
+            userRecord.lastMessageDate = now;
+
+            // Calculate how much XP they need for the NEXT level (e.g., Level 1 needs 500 XP)
+            const xpNeeded = userRecord.level * 500;
+
+            // Check if they leveled up!
+            if (userRecord.xp >= xpNeeded) {
+                userRecord.level += 1;
+                userRecord.xp -= xpNeeded; // Keep leftover XP
+
+                // Send a fun congratulation message in the chat
+                message.channel.send(`🎉 Congratulations <@${message.author.id}>, you just advanced to **Level ${userRecord.level}**!`);
+            }
+
+            // Save their new XP and Level to the database!
+            await userRecord.save();
+        }
+    } catch (err) {
+        console.error('❌ Error updating user XP:', err);
     }
 });
 
