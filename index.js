@@ -132,8 +132,12 @@ client.once('ready', async () => {
     console.log(`✨ Re:START bot is online as ${client.user.tag}!`);
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
-        console.log('✅ Slash commands registered globally.');
+        const guildId = process.env.GUILD_ID;
+        await rest.put(
+            Routes.applicationGuildCommands(client.user.id, guildId),
+            { body: slashCommands }
+        );
+        console.log(`✅ Slash commands registered to guild ${guildId}.`);
     } catch (err) {
         console.error('Failed to register slash commands:', err);
     }
