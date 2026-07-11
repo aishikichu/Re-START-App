@@ -1,6 +1,10 @@
 <div align="center">
 
-# ✨ Re:START — Custom Stat Widget Bot
+![Re:START Banner](banner.png)
+
+<img src="icon.png" width="120" />
+
+# Re:START — Custom Stat Widget Bot
 
 **A Discord bot that lets your server members customize their own profile widget stats — in real time.**
 
