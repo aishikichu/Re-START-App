@@ -324,7 +324,7 @@ client.on('interactionCreate', async (interaction) => {
         const authStatus = await updatePlayerWidget(userId);
 
         if (authStatus && !authStatus.success && (authStatus.reason === 'unauthorized' || authStatus.reason === 'expired')) {
-            const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&redirect_uri=https%3A%2F%2Fre-start-app.onrender.com%2Fcallback&response_type=code&scope=identify+openid+sdk.social_layer+application_identities.write+rpc&state=${userId}`;
+            const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&redirect_uri=https%3A%2F%2Fre-start-app.onrender.com%2Fcallback&response_type=code&scope=identify+openid+sdk.social_layer&state=${userId}`;
             
             const embed = new EmbedBuilder()
                 .setColor(0xe74c3c)
@@ -568,6 +568,18 @@ client.login(process.env.DISCORD_TOKEN);
 app.get('/', (req, res) => res.send("Re:START Bot is running!"));
 
 app.get('/callback', async (req, res) => {
+    // Check if Discord returned an error (like invalid_scope)
+    if (req.query.error) {
+        return res.send(`
+            <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+                <h1 style="color: #e74c3c;">❌ OAuth2 Error</h1>
+                <p>Discord rejected the request.</p>
+                <p><strong>Error:</strong> ${req.query.error}</p>
+                <p><strong>Description:</strong> ${req.query.error_description || 'No description provided'}</p>
+            </div>
+        `);
+    }
+
     const code = req.query.code;
     const userId = req.query.state;
     if (!code || !userId) return res.send("❌ Missing code or state parameter.");
