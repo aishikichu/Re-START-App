@@ -188,14 +188,18 @@ const slashCommands = [
 
 ].map(cmd => cmd.toJSON());
 
-// ─── Ready Event ──────────────────────────────────────────────────────────────
 client.once('ready', async () => {
     console.log(`✨ Re:START bot is online as ${client.user.tag}!`);
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         const guildId = process.env.GUILD_ID;
-        await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: slashCommands });
-        console.log(`✅ Slash commands registered to guild ${guildId}.`);
+        if (guildId && guildId.trim() && guildId !== 'undefined') {
+            await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: slashCommands });
+            console.log(`✅ Slash commands registered to guild ${guildId}.`);
+        } else {
+            await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
+            console.log('✅ Slash commands registered globally (no GUILD_ID specified).');
+        }
     } catch (err) {
         console.error('Failed to register slash commands:', err);
     }
