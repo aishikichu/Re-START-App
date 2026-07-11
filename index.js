@@ -10,7 +10,8 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    PermissionFlagsBits
+    PermissionFlagsBits,
+    Partials
 } = require('discord.js');
 const fs = require('fs');
 const express = require('express');
@@ -22,7 +23,13 @@ const profanityFilter = new Filter();
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessageReactions
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 // ─── Data Helpers ─────────────────────────────────────────────────────────────
@@ -625,6 +632,71 @@ client.on('messageCreate', async (message) => {
         }
     } catch (err) {
         console.error('❌ Error updating user XP:', err);
+    }
+});
+
+// ─── Starboard (Hall of Fame) ─────────────────────────────────────────────────
+const STARBOARD_CHANNEL_ID = '1525488417864028362';
+const STAR_THRESHOLD = 3;
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    // If the message is not cached, fetch it
+    if (reaction.partial) {
+        try {
+            await reaction.fetch();
+        } catch (error) {
+            console.error('Something went wrong when fetching the message: ', error);
+            return;
+        }
+    }
+
+    // We only care about the ⭐ emoji
+    if (reaction.emoji.name !== '⭐') return;
+
+    // We only care if it hits the threshold
+    if (reaction.count < STAR_THRESHOLD) return;
+
+    const message = reaction.message;
+    // Don't starboard bot messages (optional)
+    if (message.author.bot) return;
+
+    try {
+        const starboardChannel = client.channels.cache.get(STARBOARD_CHANNEL_ID);
+        if (!starboardChannel) return console.error('❌ Starboard channel not found!');
+
+        // Check if this message was already posted in the starboard to prevent duplicates
+        // We will do a simple check by fetching the last 100 messages in the starboard channel
+        const recentMessages = await starboardChannel.messages.fetch({ limit: 100 });
+        const alreadyPosted = recentMessages.find(m => 
+            m.embeds.length > 0 && 
+            m.embeds[0].footer && 
+            m.embeds[0].footer.text.includes(message.id)
+        );
+
+        if (alreadyPosted) return; // Already in the Hall of Fame
+
+        // Build the beautiful Starboard Embed
+        const starEmbed = new EmbedBuilder()
+            .setColor(0xf1c40f) // Gold color
+            .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL() })
+            .setDescription(message.content || '*No text provided*')
+            .addFields(
+                { name: 'Original Message', value: `[Click to jump to message!](${message.url})` }
+            )
+            .setTimestamp(message.createdAt)
+            .setFooter({ text: `⭐ ${reaction.count} | ID: ${message.id}` });
+
+        // If there is an image attached, put it in the embed
+        if (message.attachments.size > 0) {
+            const attachment = message.attachments.first();
+            if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                starEmbed.setImage(attachment.url);
+            }
+        }
+
+        await starboardChannel.send({ embeds: [starEmbed] });
+    } catch (err) {
+        console.error('❌ Starboard Error:', err);
     }
 });
 
