@@ -74,7 +74,9 @@ async function updatePlayerWidget(userId) {
         const title = u[`stat${i}_title`];
         const val   = u[`stat${i}_val`];
         if (title && val) {
-            dynamicFields.push({ type: 1, name: title, value: val });
+            // Push title and value as SEPARATE variables matching the widget layout!
+            dynamicFields.push({ type: 1, name: `stat${i}_title`, value: title });
+            dynamicFields.push({ type: 1, name: `stat${i}_val`, value: val });
         }
     }
 
