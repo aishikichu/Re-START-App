@@ -64,6 +64,10 @@ async function updatePlayerWidget(userId) {
     } catch (err) {
         console.error(`❌ Widget update FAILED for ${userId}`);
         console.error(`   Status : ${err.status}`);
+        console.error(`   Message: ${err.message}`);
+        if (err.rawError) {
+            console.error(`   Raw    : ${JSON.stringify(err.rawError)}`);
+        }
         
         // If 403, 404, 401, or 400 the user likely hasn't authorized the bot
         if (err.status === 403 || err.status === 404 || err.status === 401 || err.status === 400) {
