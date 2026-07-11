@@ -21,6 +21,9 @@ const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const profanityFilter = new Filter();
 
+const WIDGET_CHANNEL_ID = '1525308184389222400';
+const ECONOMY_CHANNEL_ID = '1525505480808730694';
+
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
     intents: [
@@ -179,10 +182,25 @@ const slashCommands = [
                     { name: '✂️ Scissors', value: 'scissors' }
                 )),
 
-    // ── Rank ─────────────────────────────────────────────────────────────────
+    // ── Rank & Economy ────────────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('rank')
         .setDescription('Check your current Level and XP in the server!'),
+    new SlashCommandBuilder()
+        .setName('daily')
+        .setDescription('Claim your free daily coins!'),
+    new SlashCommandBuilder()
+        .setName('slots')
+        .setDescription('Bet your coins on the slot machine!')
+        .addIntegerOption(opt => 
+            opt.setName('bet').setDescription('Amount of coins to bet').setRequired(true).setMinValue(1)),
+    new SlashCommandBuilder()
+        .setName('give')
+        .setDescription('Give coins to another user')
+        .addUserOption(opt => 
+            opt.setName('user').setDescription('The user to give coins to').setRequired(true))
+        .addIntegerOption(opt => 
+            opt.setName('amount').setDescription('Amount of coins to give').setRequired(true).setMinValue(1)),
 
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
@@ -304,6 +322,10 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /setstat ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'setstat') {
+        if (interaction.channelId !== WIDGET_CHANNEL_ID) {
+            return interaction.reply({ content: `⚠️ Please use the widget commands in the <#${WIDGET_CHANNEL_ID}> channel!`, flags: 64 });
+        }
+
         const slot  = interaction.options.getInteger('slot');
         const title = interaction.options.getString('title');
         const value = interaction.options.getString('value');
@@ -349,6 +371,9 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /rank ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'rank') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) {
+            return interaction.reply({ content: `⚠️ Please check your rank in the <#${ECONOMY_CHANNEL_ID}> channel!`, flags: 64 });
+        }
         await interaction.deferReply();
         try {
             if (mongoose.connection.readyState !== 1) {
@@ -374,6 +399,128 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred while fetching your rank!');
+        }
+    }
+
+    // ── /daily ────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'daily') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) userRecord = new User({ userId: interaction.user.id });
+
+            const now = new Date();
+            // Check if they claimed in the last 24 hours (86400000 ms)
+            if (userRecord.lastDailyDate && (now - userRecord.lastDailyDate) < 86400000) {
+                const timeLeft = Math.ceil((86400000 - (now - userRecord.lastDailyDate)) / 1000 / 60 / 60);
+                return interaction.editReply(`⏳ You already claimed your daily coins! Come back in **${timeLeft} hours**.`);
+            }
+
+            const reward = Math.floor(Math.random() * 201) + 100; // 100 to 300 coins
+            userRecord.coins += reward;
+            userRecord.lastDailyDate = now;
+            await userRecord.save();
+
+            const embed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle('🎁 Daily Reward Claimed!')
+                .setDescription(`You received **🪙 ${reward} coins**!\nYou now have **🪙 ${userRecord.coins} coins** total.`);
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while claiming your daily reward!');
+        }
+    }
+
+    // ── /slots ────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'slots') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const bet = interaction.options.getInteger('bet');
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || userRecord.coins < bet) {
+                return interaction.editReply(`❌ You don't have enough coins! You only have **🪙 ${userRecord ? userRecord.coins : 0}**.`);
+            }
+
+            // Deduct bet immediately
+            userRecord.coins -= bet;
+
+            const emojis = ['🍒', '🍋', '🍇', '🍉', '🔔', '💎'];
+            const r1 = emojis[Math.floor(Math.random() * emojis.length)];
+            const r2 = emojis[Math.floor(Math.random() * emojis.length)];
+            const r3 = emojis[Math.floor(Math.random() * emojis.length)];
+
+            let multiplier = 0;
+            let resultMessage = 'You lost... Better luck next time!';
+            let color = 0xe74c3c;
+
+            if (r1 === r2 && r2 === r3) {
+                multiplier = 5; // Jackpot
+                resultMessage = '🎰 **JACKPOT!** You won 5x your bet!';
+                color = 0xf1c40f;
+            } else if (r1 === r2 || r2 === r3 || r1 === r3) {
+                multiplier = 2; // Small win
+                resultMessage = '✨ **WIN!** You matched 2! You won 2x your bet!';
+                color = 0x2ecc71;
+            }
+
+            const winnings = bet * multiplier;
+            userRecord.coins += winnings;
+            await userRecord.save();
+
+            const embed = new EmbedBuilder()
+                .setColor(color)
+                .setTitle('🎰 Slot Machine')
+                .setDescription(`**[ ${r1} | ${r2} | ${r3} ]**\n\n${resultMessage}`)
+                .setFooter({ text: `New Balance: 🪙 ${userRecord.coins}` });
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while playing slots!');
+        }
+    }
+
+    // ── /give ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'give') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const targetUser = interaction.options.getUser('user');
+        const amount = interaction.options.getInteger('amount');
+        await interaction.deferReply();
+
+        if (targetUser.id === interaction.user.id || targetUser.bot) {
+            return interaction.editReply('❌ You cannot give coins to yourself or bots!');
+        }
+
+        try {
+            let senderRecord = await User.findOne({ userId: interaction.user.id });
+            if (!senderRecord || senderRecord.coins < amount) {
+                return interaction.editReply(`❌ You don't have enough coins! You only have **🪙 ${senderRecord ? senderRecord.coins : 0}**.`);
+            }
+
+            let receiverRecord = await User.findOne({ userId: targetUser.id });
+            if (!receiverRecord) receiverRecord = new User({ userId: targetUser.id });
+
+            senderRecord.coins -= amount;
+            receiverRecord.coins += amount;
+
+            await senderRecord.save();
+            await receiverRecord.save();
+
+            const embed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setDescription(`💸 <@${interaction.user.id}> gave **🪙 ${amount} coins** to <@${targetUser.id}>!`);
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while transferring coins!');
         }
     }
 
