@@ -314,3 +314,13 @@ client.on('messageCreate', async (message) => {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 client.login(process.env.DISCORD_TOKEN);
+
+// ─── Keep-Alive HTTP Server ───────────────────────────────────────────────────
+// Keeps the bot alive on hosting platforms (Render, Railway, Glitch, etc.)
+const http = require('http');
+http.createServer((req, res) => {
+    res.write("I'm alive!");
+    res.end();
+}).listen(process.env.PORT || 3000, () => {
+    console.log(`🌐 Keep-alive server running on port ${process.env.PORT || 3000}`);
+});
