@@ -31,48 +31,14 @@ function saveData(data) {
 }
 
 // ─── Widget Updater ───────────────────────────────────────────────────────────
-// Uses the /identities/0/profile PATCH endpoint via user's personal Bearer token
+// Uses the /identities/0/profile PATCH endpoint via the Bot Token
 async function updatePlayerWidget(userId) {
     const data = getData();
     const u = (data.users || {})[userId] || {};
 
-    if (!u.tokens || !u.tokens.access_token) {
-        console.log(`⚠️ No access token for ${userId}. Cannot update widget.`);
-        return { success: false, reason: 'unauthorized' };
-    }
-
-    // Refresh token if expired
-    if (Date.now() >= (u.tokens.expires_at - 60000)) {
-        try {
-            console.log(`🔄 Refreshing token for ${userId}...`);
-            const refreshRes = await fetch('https://discord.com/api/oauth2/token', {
-                method: 'POST',
-                body: new URLSearchParams({
-                    client_id: client.user.id,
-                    client_secret: process.env.DISCORD_CLIENT_SECRET,
-                    grant_type: 'refresh_token',
-                    refresh_token: u.tokens.refresh_token
-                }),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            });
-            const refreshData = await refreshRes.json();
-            if (refreshData.error) throw new Error(refreshData.error);
-            
-            u.tokens.access_token = refreshData.access_token;
-            u.tokens.refresh_token = refreshData.refresh_token;
-            u.tokens.expires_at = Date.now() + (refreshData.expires_in * 1000);
-            saveData(data);
-        } catch (err) {
-            console.error(`❌ Failed to refresh token for ${userId}:`, err.message);
-            return { success: false, reason: 'expired' };
-        }
-    }
-
     // Build dynamic fields
     const dynamicFields = [];
     for (let i = 1; i <= 6; i++) {
-        // If a stat is empty, we must push a placeholder because the Widget Editor 
-        // marks all fields as "REQUIRED" by default!
         const title = u[`stat${i}_title`] || "-";
         const val   = u[`stat${i}_val`]   || "-";
         
@@ -83,24 +49,24 @@ async function updatePlayerWidget(userId) {
     if (dynamicFields.length === 0) return { success: true, ignored: true };
 
     try {
-        const patchRes = await fetch(`https://discord.com/api/v10/applications/${client.user.id}/users/${userId}/identities/0/profile`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${u.tokens.access_token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ data: { dynamic: dynamicFields } })
-        });
-        
-        if (!patchRes.ok) {
-            const errData = await patchRes.json();
-            throw new Error(`Status ${patchRes.status}: ${JSON.stringify(errData)}`);
-        }
-        
-        console.log(`✅ Widget updated for ${userId} with fields:`, dynamicFields.map(f => f.name));
+        await client.rest.patch(
+            `/applications/${client.user.id}/users/${userId}/identities/0/profile`,
+            {
+                body: {
+                    data: { dynamic: dynamicFields }
+                }
+            }
+        );
+        console.log(`✅ Widget updated for ${userId}`);
         return { success: true };
     } catch (err) {
-        console.error(`❌ Widget update FAILED for ${userId}:`, err.message);
+        console.error(`❌ Widget update FAILED for ${userId}`);
+        console.error(`   Status : ${err.status}`);
+        
+        // If 403, the user hasn't authorized the bot with the sdk.social_layer scope
+        if (err.status === 403) {
+            return { success: false, reason: 'unauthorized' };
+        }
         return { success: false, reason: 'api_error' };
     }
 }
@@ -325,7 +291,7 @@ client.on('interactionCreate', async (interaction) => {
         // Check if user is authorized and update widget
         const authStatus = await updatePlayerWidget(userId);
 
-        if (authStatus && !authStatus.success && (authStatus.reason === 'unauthorized' || authStatus.reason === 'expired')) {
+        if (authStatus && !authStatus.success && authStatus.reason === 'unauthorized') {
             const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&redirect_uri=https%3A%2F%2Fre-start-app.onrender.com%2Fcallback&response_type=code&scope=identify+openid+sdk.social_layer&state=${userId}`;
             
             const embed = new EmbedBuilder()
@@ -333,7 +299,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setTitle('⚠️ Link Your Discord Account')
                 .setDescription(`Your stat was saved, but I need permission to update your profile widget!\n\n[**Click here to Authorize**](${oauthUrl})\n\n*(You only have to do this once!)*`);
             
-            return interaction.reply({ embeds: [embed], ephemeral: true });
+            return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
         }
 
         const embed = new EmbedBuilder()
@@ -345,7 +311,7 @@ client.on('interactionCreate', async (interaction) => {
             )
             .setFooter({ text: authStatus && !authStatus.success ? '⚠️ Stat saved, but widget API error occurred' : 'Pushed to your widget!' });
 
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
     }
 
     // ── /8ball ────────────────────────────────────────────────────────────────
