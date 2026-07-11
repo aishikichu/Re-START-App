@@ -52,7 +52,7 @@ async function updatePlayerWidget(userId) {
 
     try {
         await client.rest.patch(
-            `/applications/${client.user.id}/users/${userId}/identities/0/profile`,
+            `/applications/${client.user.id}/users/${userId}/identities/${userId}/profile`,
             {
                 body: {
                     data: { dynamic: dynamicFields }
