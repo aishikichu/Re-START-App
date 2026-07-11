@@ -29,24 +29,37 @@ function saveData(data) {
 }
 
 // ─── Widget Updater ───────────────────────────────────────────────────────────
+// Uses the /identities/0/profile PATCH endpoint — exact format: {"data":{"dynamic":[...]}}
 async function updatePlayerWidget(userId) {
     const data = getData();
     const u = (data.users || {})[userId] || {};
+
+    // Build dynamic fields — each saved stat title becomes the field name
+    // These names must match variables configured in the Discord Developer Portal
+    const dynamicFields = [];
+    for (let i = 1; i <= 6; i++) {
+        const title = u[`stat${i}_title`];
+        const val   = u[`stat${i}_val`];
+        if (title && val) {
+            dynamicFields.push({ type: 1, name: title, value: val });
+        }
+    }
+
+    if (dynamicFields.length === 0) {
+        console.log(`⚠️ No stats set for ${userId}, skipping widget update.`);
+        return;
+    }
+
     try {
-        const result = await client.rest.put(
-            `/applications/${client.user.id}/users/${userId}/profile`,
+        await client.rest.patch(
+            `/applications/${client.user.id}/users/${userId}/identities/0/profile`,
             {
                 body: {
-                    stat1_title: u.stat1_title || 'Stat 1',   stat1_val: u.stat1_val || 'Not Set',
-                    stat2_title: u.stat2_title || 'Stat 2',   stat2_val: u.stat2_val || 'Not Set',
-                    stat3_title: u.stat3_title || 'Stat 3',   stat3_val: u.stat3_val || 'Not Set',
-                    stat4_title: u.stat4_title || 'Stat 4',   stat4_val: u.stat4_val || 'Not Set',
-                    stat5_title: u.stat5_title || 'Stat 5',   stat5_val: u.stat5_val || 'Not Set',
-                    stat6_title: u.stat6_title || 'Stat 6',   stat6_val: u.stat6_val || 'Not Set',
+                    data: { dynamic: dynamicFields }
                 }
             }
         );
-        console.log(`✅ Widget updated for ${userId}:`, JSON.stringify(result));
+        console.log(`✅ Widget updated for ${userId} with fields:`, dynamicFields.map(f => f.name));
     } catch (err) {
         console.error(`❌ Widget update FAILED for ${userId}`);
         console.error(`   Status : ${err.status}`);
@@ -164,6 +177,14 @@ const slashCommands = [
             opt.setName('color').setDescription('Hex color without # (e.g. ff69b4)').setRequired(true))
         .addStringOption(opt =>
             opt.setName('emoji').setDescription('Button emoji (e.g. 🌙)').setRequired(true)),
+
+    // ── Widget Identity (Admin only) ──────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('issueidentity')
+        .setDescription('🪪 Manually issue a widget identity for a user (Admin only)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('The Discord user to issue identity for').setRequired(true)),
 
 ].map(cmd => cmd.toJSON());
 
@@ -463,6 +484,28 @@ client.on('interactionCreate', async (interaction) => {
 
         return interaction.editReply({
             content: `✅ Role **${emoji} ${name}** created and added to the panel!\nColor: \`#${hex}\` | ID: \`${created.id}\``
+        });
+    }
+
+    // ── /issueidentity ─────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'issueidentity') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const target   = interaction.options.getUser('user');
+        const userId   = target.id;
+        const username = target.username;
+
+        // Make sure there's at least placeholder data for this user
+        const data = getData();
+        if (!data.users) data.users = {};
+        if (!data.users[userId]) data.users[userId] = { username };
+        else data.users[userId].username = username;
+        saveData(data);
+
+        await updatePlayerWidget(userId, username);
+
+        return interaction.editReply({
+            content: `✅ Issued widget identity for **${target.tag}** (\`${userId}\`)!\nCheck Render logs to confirm it worked.`
         });
     }
 });
