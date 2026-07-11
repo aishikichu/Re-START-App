@@ -215,6 +215,19 @@ const slashCommands = [
     new SlashCommandBuilder()
         .setName('gacha')
         .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
+    new SlashCommandBuilder()
+        .setName('inventory')
+        .setDescription('View your collection of Booth Avatars'),
+    new SlashCommandBuilder()
+        .setName('sell')
+        .setDescription('Sell an avatar from your inventory for Coins')
+        .addStringOption(opt => 
+            opt.setName('avatar_id').setDescription('The ID of the avatar to sell').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('wish')
+        .setDescription('Add or remove an avatar from your wishlist')
+        .addStringOption(opt => 
+            opt.setName('avatar_id').setDescription('The ID of the avatar to wish for').setRequired(true)),
 
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
@@ -644,6 +657,13 @@ client.on('interactionCreate', async (interaction) => {
             const pool = gachaPool.filter(m => m.rarity === selectedRarity);
             const model = pool[Math.floor(Math.random() * pool.length)];
 
+            // Check if anyone has this model wishlisted
+            const wishers = await User.find({ wishlist: model.id });
+            let wishPing = '';
+            if (wishers.length > 0) {
+                wishPing = wishers.map(w => `<@${w.userId}>`).join(' ') + ' \n⭐ **A wishlisted avatar has appeared!**';
+            }
+
             // Color based on rarity
             const colors = { 'UR': 0xff00ff, 'SR': 0xf1c40f, 'R': 0x3498db, 'C': 0x95a5a6 };
 
@@ -662,10 +682,129 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(claimButton);
 
-            return interaction.editReply({ embeds: [embed], components: [row] });
+            return interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row] });
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred during the Gacha roll!');
+        }
+    }
+
+    // ── /inventory ────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'inventory') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+        try {
+            const userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || userRecord.inventory.length === 0) {
+                return interaction.editReply('🎒 Your inventory is completely empty! Buy some tokens and use `/gacha`!');
+            }
+
+            let totalValue = 0;
+            const inventoryCounts = {};
+            
+            // Count duplicates and total value
+            userRecord.inventory.forEach(id => {
+                const model = gachaPool.find(m => m.id === id);
+                if (model) {
+                    totalValue += model.value;
+                    if (!inventoryCounts[id]) inventoryCounts[id] = { ...model, count: 0 };
+                    inventoryCounts[id].count++;
+                }
+            });
+
+            // Sort by rarity (Value)
+            const sortedItems = Object.values(inventoryCounts).sort((a, b) => b.value - a.value);
+            
+            let desc = '';
+            sortedItems.forEach(item => {
+                desc += `**[${item.rarity}]** ${item.name} (ID: \`${item.id}\`) — 🪙 ${item.value} ${item.count > 1 ? ` **x${item.count}**` : ''}\n`;
+            });
+
+            const embed = new EmbedBuilder()
+                .setColor(0x3498db)
+                .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
+                .setDescription(desc || 'Nothing here yet!')
+                .addFields(
+                    { name: '🎟️ Tokens', value: `${userRecord.gachaTokens}`, inline: true },
+                    { name: '💰 Total Value', value: `🪙 ${totalValue}`, inline: true }
+                );
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error loading inventory!');
+        }
+    }
+
+    // ── /sell ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'sell') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+        await interaction.deferReply();
+
+        try {
+            const userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.inventory.includes(avatarId)) {
+                return interaction.editReply(`❌ You do not own an avatar with the ID \`${avatarId}\`! Check your \`/inventory\`.`);
+            }
+
+            const model = gachaPool.find(m => m.id === avatarId);
+            if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
+
+            // Remove ONE instance of that avatar
+            const index = userRecord.inventory.indexOf(avatarId);
+            userRecord.inventory.splice(index, 1);
+
+            // Add coins
+            userRecord.coins += model.value;
+            await userRecord.save();
+
+            const embed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle('♻️ Avatar Sold!')
+                .setDescription(`You successfully scrapped **${model.name}** for **🪙 ${model.value} Coins**!\nNew Balance: **🪙 ${userRecord.coins}**`);
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error selling avatar!');
+        }
+    }
+
+    // ── /wish ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'wish') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+        await interaction.deferReply();
+
+        try {
+            const model = gachaPool.find(m => m.id === avatarId);
+            if (!model) {
+                return interaction.editReply(`❌ I couldn't find an avatar with the ID \`${avatarId}\`. Please check the spelling!`);
+            }
+
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) userRecord = new User({ userId: interaction.user.id });
+
+            // Toggle wishlist
+            if (userRecord.wishlist.includes(avatarId)) {
+                userRecord.wishlist = userRecord.wishlist.filter(id => id !== avatarId);
+                await userRecord.save();
+                return interaction.editReply(`✅ Removed **${model.name}** from your wishlist!`);
+            } else {
+                if (userRecord.wishlist.length >= 5) {
+                    return interaction.editReply('❌ Your wishlist is full! You can only wish for 5 avatars at a time.');
+                }
+                userRecord.wishlist.push(avatarId);
+                await userRecord.save();
+                return interaction.editReply(`🌟 Added **${model.name}** to your wishlist! You will be pinged if someone rolls it!`);
+            }
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error updating wishlist!');
         }
     }
 
