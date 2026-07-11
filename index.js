@@ -245,7 +245,14 @@ client.on('interactionCreate', async (interaction) => {
                     name: '🪪 Profile Widget',
                     value: [
                         '`/setstat <slot> <title> <value>` — Customize your widget stat (slots 1–6)',
-                        '**Example:** `/setstat 1 Vibe Chill`',
+                        '**Commands:**',
+                        '`/setstat <slot 1-6> <title> <value>` - Updates a specific slot on your profile widget!',
+                        '',
+                        '**✨ How to get the Profile Widget:**',
+                        '1. Run `/setstat 1 Vibe Chill` (or whatever stat you want).',
+                        '2. Click the temporary authorization link the bot sends you.',
+                        '3. Click **Authorize** to link your Discord account.',
+                        '4. The widget will automatically appear on your Discord profile!'
                     ].join('\n')
                 },
                 { name: '\u200b', value: '\u200b' },
@@ -297,7 +304,7 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder()
                 .setColor(0xe74c3c)
                 .setTitle('⚠️ Link Your Discord Account')
-                .setDescription(`Your stat was saved, but I need permission to update your profile widget!\n\n[**Click here to Authorize**](${oauthUrl})\n\n*(You only have to do this once!)*`);
+                .setDescription(`Your stat was saved, but I need permission to update your profile widget!\n\n[**Click here to Authorize**](${oauthUrl})\n\n*(You only have to do this once! After authorizing, the widget will automatically be added to your profile!)*`);
             
             return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
         }
@@ -309,7 +316,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: 'Title', value: title, inline: true },
                 { name: 'Value', value: value, inline: true }
             )
-            .setFooter({ text: authStatus && !authStatus.success ? '⚠️ Stat saved, but widget API error occurred' : 'Pushed to your widget!' });
+            .setFooter({ text: authStatus && !authStatus.success ? '⚠️ Stat saved, but widget API error occurred' : 'Pushed to your widget! (Make sure to check your profile)' });
 
         return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
     }
