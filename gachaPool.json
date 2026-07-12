@@ -16,16 +16,23 @@
     {
         "id": "kikyo",
         "name": "Kikyo",
-        "rarity": "SR",
-        "value": 1000,
+        "rarity": "UR",
+        "value": 2000,
         "image": "https://booth.pximg.net/c/620x620/ed52788c-0b3b-4e38-9ded-1e5797daf0ef/i/3681787/2409bb9f-24f3-42dd-8ad6-89a0656f2166_base_resized.jpg"
     },
     {
         "id": "maya",
         "name": "Maya",
-        "rarity": "SR",
-        "value": 1000,
+        "rarity": "UR",
+        "value": 2000,
         "image": "https://booth.pximg.net/c/620x620/f420c992-4225-4ce0-b751-3a4acdceaab6/i/3390957/452e082f-67e8-480d-b697-9378977f41b0_base_resized.jpg"
+    },
+    {
+        "id": "shinra",
+        "name": "Shinra",
+        "rarity": "UR",
+        "value": 2000,
+        "image": "https://placehold.co/400x400/png?text=Shinra"
     },
     {
         "id": "moe",
@@ -37,43 +44,64 @@
     {
         "id": "rindo",
         "name": "Rindo",
-        "rarity": "R",
-        "value": 500,
+        "rarity": "SR",
+        "value": 1000,
         "image": "https://booth.pximg.net/c/620x620/8a7426aa-ba62-4ef0-9e7d-2c8ea96e7c9b/i/3443188/0d655d88-23b0-4e23-a2ab-0e42244abd03_base_resized.jpg"
     },
     {
         "id": "lime",
         "name": "Lime",
-        "rarity": "R",
-        "value": 500,
+        "rarity": "SR",
+        "value": 1000,
         "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/4876459/73a1c9e3-825d-4045-bf14-e07392ad7afa_base_resized.jpg"
     },
     {
         "id": "karin",
         "name": "Karin",
-        "rarity": "R",
-        "value": 500,
+        "rarity": "SR",
+        "value": 1000,
         "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/3470989/a70bc916-21f3-4b06-ae3a-eb302058a0b5_base_resized.jpg"
+    },
+    {
+        "id": "sio",
+        "name": "Sio",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://booth.pximg.net/c/620x620/817e9a9a-020c-4fac-8b21-96f80d6e25cb/i/5650156/95fc778d-3254-45ca-8a6e-2590dc30f87c_base_resized.jpg"
     },
     {
         "id": "grus",
         "name": "Grus",
-        "rarity": "C",
-        "value": 100,
+        "rarity": "R",
+        "value": 500,
         "image": "https://booth.pximg.net/c/620x620/a238249a-3754-4828-9be4-c031f8e3662d/i/3190100/94d47ae0-e4ec-4147-b417-0ac636778a98_base_resized.jpg"
     },
     {
         "id": "mint",
         "name": "Mint",
-        "rarity": "C",
-        "value": 100,
+        "rarity": "R",
+        "value": 500,
         "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/2258111/855f59ec-25c5-4a3b-bdc4-d6de695e31be_base_resized.jpg"
     },
     {
         "id": "milk",
         "name": "Milk Re:",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/2953391/d16328b7-6585-42e3-af84-83bde2f7c2f7_base_resized.jpg"
+    },
+    {
+        "id": "chise",
+        "name": "Chise",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://placehold.co/400x400/png?text=Chise"
+    },
+    {
+        "id": "rusk",
+        "name": "Rusk",
         "rarity": "C",
         "value": 100,
-        "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/2953391/d16328b7-6585-42e3-af84-83bde2f7c2f7_base_resized.jpg"
+        "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/2559783/94e7e34d-c8fa-41e1-b2ea-433f7ebb8b7c_base_resized.jpg"
     }
 ]
