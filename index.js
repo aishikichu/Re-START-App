@@ -577,11 +577,29 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // ── Button: Gacha Claim ───────────────────────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith('claim_')) {
-        const parts = interaction.customId.split('_');
-        const modelId = parts[1];
-        const rollerId = parts[2]; // We added this to the ID
+    if (interaction.isButton() && (interaction.customId.startsWith('claim_') || interaction.customId.startsWith('claim:'))) {
         const claimerId = interaction.user.id;
+        let modelId, rollerId;
+
+        if (interaction.customId.startsWith('claim:')) {
+            // New format: claim:model_id:roller_id:timestamp
+            const parts = interaction.customId.split(':');
+            modelId = parts[1];
+            rollerId = parts[2];
+        } else {
+            // Old format: claim_model_id_roller_id_timestamp OR claim_model_id_timestamp
+            const withoutPrefix = interaction.customId.replace('claim_', '');
+            const model = gachaPool.find(m => withoutPrefix.startsWith(m.id));
+            if (!model) return interaction.reply({ content: '❌ Error: Avatar not found!', flags: 64 });
+            modelId = model.id;
+            
+            const remainder = withoutPrefix.replace(model.id + '_', '');
+            if (remainder.includes('_')) {
+                rollerId = remainder.split('_')[0]; // It was the broken new format from earlier
+            } else {
+                rollerId = claimerId; // It was the very old format, assume they are legit
+            }
+        }
 
         try {
             // Check if button is already claimed
@@ -1337,7 +1355,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
             const claimButton = new ButtonBuilder()
-                .setCustomId(`claim_${model.id}_${interaction.user.id}_${Date.now()}`)
+                .setCustomId(`claim:${model.id}:${interaction.user.id}:${Date.now()}`)
                 .setLabel('Claim Avatar')
                 .setEmoji('💖')
                 .setStyle(ButtonStyle.Success);
