@@ -27,19 +27,20 @@ const activeClaimLocks = new Set(); // Prevent race conditions on buttons
 const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const Starboard = require('./models/Starboard'); // Import Starboard schema
+const GachaItem = require('./models/GachaItem'); // Import new MongoDB Gacha schema
 const profanityFilter = new Filter();
 let gachaPool = [];
-const poolPath = path.join(__dirname, 'gachaPool.json');
-if (fs.existsSync(poolPath)) {
+
+// Wait for MongoDB to connect before loading the pool
+mongoose.connection.once('open', async () => {
     try {
-        gachaPool = JSON.parse(fs.readFileSync(poolPath, 'utf8'));
-    } catch (e) {
-        console.error("Failed to parse gachaPool.json, starting with empty pool.");
-        gachaPool = [];
+        const items = await GachaItem.find({});
+        gachaPool = items;
+        console.log(`✅ Loaded ${gachaPool.length} avatars from MongoDB into the Gacha Pool.`);
+    } catch (err) {
+        console.error("❌ Failed to load Gacha Pool from MongoDB:", err);
     }
-} else {
-    fs.writeFileSync(poolPath, JSON.stringify([], null, 2));
-}
+});
 
 const WIDGET_CHANNEL_ID = '1525308184389222400';
 const STARBOARD_CHANNEL_ID = '1525488417864028362';
@@ -631,23 +632,12 @@ client.on('interactionCreate', async (interaction) => {
             const fs = require('fs');
             const path = require('path');
             
-            // 1. Download the Image
-            const imageUrl = embed.image.url;
-            const res = await fetch(imageUrl);
-            const buffer = Buffer.from(await res.arrayBuffer());
-            
             // Generate a clean, short ID based on the English name they inputted
             let safeName = finalName.replace(/[^a-z0-9]/gi, '').toLowerCase();
             if (gachaPool.some(m => m.id.startsWith(safeName + '_'))) {
                 safeName += '_' + Math.floor(Math.random() * 1000);
             }
             
-            const fileName = safeName + '_' + Date.now() + '.jpg';
-            const filePath = path.join(__dirname, 'images', fileName);
-            
-            if (!fs.existsSync(path.join(__dirname, 'images'))) fs.mkdirSync(path.join(__dirname, 'images'));
-            fs.writeFileSync(filePath, buffer);
-
             // 2. Determine Rarity & Creator
             let creator = 'Unknown';
             if (embed.footer && embed.footer.text && embed.footer.text.startsWith('Creator: ')) {
@@ -657,47 +647,44 @@ client.on('interactionCreate', async (interaction) => {
                 if (creatorField) creator = creatorField.value;
             }
 
-            // 3. Add to gachaPool.json (Variant Logic)
+            // 3. Add to MongoDB and memory
             const baseUrl = embed.url || 'https://booth.pm/';
+            const imageUrl = embed.image.url; // Use URL directly instead of downloading
             let addedVariants = [];
+            let newItems = [];
 
             if (isEvent) {
-                const newAvatar = {
-                    id: safeName,
-                    name: finalName,
-                    url: baseUrl,
-                    image: fileName,
-                    rarity: 'USSR',
-                    value: 5000,
-                    creator: creator
-                };
-                gachaPool.push(newAvatar);
+                newItems.push(new GachaItem({ id: safeName, name: finalName, rarity: 'USSR', value: 5000, image: imageUrl, creator: creator }));
                 addedVariants.push('USSR');
             } else {
                 const variants = parseInt(interaction.fields.getTextInputValue('avatar_variants')) || 4;
 
                 if (variants >= 4) {
-                    gachaPool.push({ id: safeName + '_ur', name: finalName, url: baseUrl, image: fileName, rarity: 'UR', value: 1000, creator });
-                    gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
-                    gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
-                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    newItems.push(new GachaItem({ id: safeName + '_ur', name: finalName, rarity: 'UR', value: 1000, image: imageUrl, creator: creator }));
+                    newItems.push(new GachaItem({ id: safeName + '_sr', name: finalName, rarity: 'SR', value: 500, image: imageUrl, creator: creator }));
+                    newItems.push(new GachaItem({ id: safeName + '_r', name: finalName, rarity: 'R', value: 100, image: imageUrl, creator: creator }));
+                    newItems.push(new GachaItem({ id: safeName + '_c', name: finalName, rarity: 'C', value: 25, image: imageUrl, creator: creator }));
                     addedVariants.push('UR', 'SR', 'R', 'C');
                 } else if (variants === 3) {
-                    gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
-                    gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
-                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    newItems.push(new GachaItem({ id: safeName + '_sr', name: finalName, rarity: 'SR', value: 500, image: imageUrl, creator: creator }));
+                    newItems.push(new GachaItem({ id: safeName + '_r', name: finalName, rarity: 'R', value: 100, image: imageUrl, creator: creator }));
+                    newItems.push(new GachaItem({ id: safeName + '_c', name: finalName, rarity: 'C', value: 25, image: imageUrl, creator: creator }));
                     addedVariants.push('SR', 'R', 'C');
                 } else if (variants === 2) {
-                    gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
-                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    newItems.push(new GachaItem({ id: safeName + '_r', name: finalName, rarity: 'R', value: 100, image: imageUrl, creator: creator }));
+                    newItems.push(new GachaItem({ id: safeName + '_c', name: finalName, rarity: 'C', value: 25, image: imageUrl, creator: creator }));
                     addedVariants.push('R', 'C');
                 } else {
-                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    newItems.push(new GachaItem({ id: safeName + '_c', name: finalName, rarity: 'C', value: 25, image: imageUrl, creator: creator }));
                     addedVariants.push('C');
                 }
             }
 
-            fs.writeFileSync(path.join(__dirname, 'gachaPool.json'), JSON.stringify(gachaPool, null, 2));
+            // Save to MongoDB
+            await GachaItem.insertMany(newItems);
+            
+            // Add to in-memory pool
+            gachaPool.push(...newItems);
             
             // 4. Reward submitter
             let submitterId = null;
