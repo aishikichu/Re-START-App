@@ -19,7 +19,8 @@ const userSchema = new mongoose.Schema({
     isGameStaff: { type: Boolean, default: false }, // Staff permission flag
     lastSubmissionRewardDate: { type: Date, default: null }, // Daily reward tracker
     vipExpiresAt: { type: Date, default: null }, // VIP mode expiration
-    badLuckExpiresAt: { type: Date, default: null } // Bad Luck expiration
+    badLuckExpiresAt: { type: Date, default: null }, // Bad Luck expiration
+    profanityCount: { type: Number, default: 0 } // Tracker for the Hall of Re:START swearing leaderboard
 });
 
 module.exports = mongoose.model('User', userSchema);

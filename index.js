@@ -236,6 +236,10 @@ const slashCommands = [
         .addIntegerOption(opt => 
             opt.setName('amount').setDescription('Amount of coins to give').setRequired(true).setMinValue(1)),
 
+    new SlashCommandBuilder()
+        .setName('hallofshame')
+        .setDescription('👑 [DEV ONLY] Post the top 3 swearers to the Hall of Re:START channel'),
+
     // ── Gacha System ──────────────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('shop')
@@ -2496,6 +2500,50 @@ client.on('interactionCreate', async (interaction) => {
             content: `✅ Issued widget identity for **${target.tag}** (\`${userId}\`)!\nCheck Render logs to confirm it worked.`
         });
     }
+
+    // ── /hallofshame ─────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'hallofshame') {
+        // Dev Only check - replace with actual dev ID if needed, or rely on Discord permissions
+        const devId = '532057997327335447'; // Note: update this ID if the dev ID is different
+        if (interaction.user.id !== devId) {
+            return interaction.reply({ content: '❌ Only the developer can use this command!', flags: 64 });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            // Find the top 3 users by profanityCount
+            const topSwearers = await User.find({ profanityCount: { $gt: 0 } })
+                .sort({ profanityCount: -1 })
+                .limit(3);
+
+            if (topSwearers.length === 0) {
+                return interaction.editReply('❌ Nobody has sworn yet... how peaceful!');
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle('🤬 Hall of Shame: Top 3 Swearers')
+                .setDescription('These users have the filthiest mouths in the server!\n\n' + topSwearers.map((u, i) => {
+                    const medals = ['🥇', '🥈', '🥉'];
+                    return `${medals[i]} <@${u.userId}> - **${u.profanityCount}** bad words`;
+                }).join('\n\n'))
+                .setFooter({ text: 'Re:START Bot • Hall of Shame' })
+                .setTimestamp();
+
+            // Send to the Hall of Re:START channel
+            const hallChannel = interaction.client.channels.cache.get('1525488417864028362');
+            if (hallChannel) {
+                await hallChannel.send({ embeds: [embed] });
+                return interaction.editReply('✅ Successfully posted the Hall of Shame to <#1525488417864028362>!');
+            } else {
+                return interaction.editReply('❌ Could not find the Hall of Re:START channel (ID: 1525488417864028362).');
+            }
+        } catch (err) {
+            console.error('Hall of Shame error:', err);
+            return interaction.editReply('❌ Error fetching the Hall of Shame data.');
+        }
+    }
 });
 
 // ─── Chat XP Leveling System ──────────────────────────────────────────────────
@@ -2511,6 +2559,12 @@ client.on('messageCreate', async (message) => {
         let userRecord = await User.findOne({ userId: message.author.id });
         if (!userRecord) {
             userRecord = new User({ userId: message.author.id });
+        }
+
+        // --- Profanity Tracking Logic ---
+        if (profanityFilter.isProfane(message.content)) {
+            userRecord.profanityCount = (userRecord.profanityCount || 0) + 1;
+            // We save it later below
         }
 
         const now = new Date();
@@ -2539,10 +2593,11 @@ client.on('messageCreate', async (message) => {
                 // Send a fun congratulation message in the chat
                 message.channel.send(`🎉 Congratulations <@${message.author.id}>, you just advanced to **Level ${userRecord.level}**!`);
             }
-
-            // Save their new XP and Level to the database!
-            await userRecord.save();
         }
+        
+        // Save their new XP, Level, and Profanity Count to the database!
+        // (Moved outside the cooldown block so profanities save immediately)
+        await userRecord.save();
 
         // ─── Random Chat Drops ─────────────────────────────────────────────────────────
         if (message.channelId === ECONOMY_CHANNEL_ID) {
