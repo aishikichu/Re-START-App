@@ -24,6 +24,7 @@ const gachaPool = require('./gachaPool.json'); // Import the list of Booth avata
 
 const WIDGET_CHANNEL_ID = '1525308184389222400';
 const ECONOMY_CHANNEL_ID = '1525505480808730694';
+const REBOOTH_CHANNEL_ID = '1525666791974764684';
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
@@ -660,7 +661,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         const embed = new EmbedBuilder()
             .setColor(0x9b59b6)
@@ -674,7 +675,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /buy ──────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'buy') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         const item = interaction.options.getString('item');
         await interaction.deferReply();
@@ -700,7 +701,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /gacha ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'gacha') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         await interaction.deferReply();
 
@@ -759,7 +760,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /inventory ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'inventory') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         await interaction.deferReply();
         try {
@@ -807,7 +808,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /sell ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'sell') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -843,7 +844,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /wish ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'wish') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -878,7 +879,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /trade ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'trade') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
         const targetUser = interaction.options.getUser('user');
         const giveId = interaction.options.getString('give_id').toLowerCase();
