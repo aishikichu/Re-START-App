@@ -48,10 +48,12 @@ Spend your tokens to roll for 3D Booth Avatars! The pool contains **over 2,000 u
 * Collect popular avatars like Maya, Imeris, Kikyo, and more.
 * Experience the thrill of pulling a **[UR] Ultra Rare**, **[SR] Super Rare**, or **[R] Rare** variant.
 * Set up a **Wishlist** and get notified when someone rolls your dream avatar!
+* **Lookup** the database to find all variants of an avatar and see who owns them.
 * **Trade** avatars with other players, or **sell** duplicates back to the shop.
 
-### 🪪 Profile Widget Stats
-Hook directly into Discord's **Profile Widget API**. Users can type `/setstat` to instantly push custom labels and values directly to their in-app profile widget. No messy dashboards needed!
+### 🪪 Profile Widget Stats & In-Server Profiles
+* Hook directly into Discord's **Profile Widget API**. Users can type `/setstat` to instantly push custom labels and values directly to their in-app profile widget. No messy dashboards needed!
+* Or view your **In-Server Profile** with `/profile` to see your Level, Net Worth, unlocked Badges, and showcase your favorite avatars!
 
 ---
 
