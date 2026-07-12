@@ -863,12 +863,23 @@ client.on('interactionCreate', async (interaction) => {
             const row = new ActionRowBuilder().addComponents(disabledButton);
             const embed = EmbedBuilder.from(interaction.message.embeds[0]);
             
-            // Remove image from embed to avoid visual duplicate, keep thumbnail or nothing
-            // We just let the original attachment stay attached to the message.
-            // embed.setImage(null);
+            // Re-fetch the image to pass it in the update payload, fixing the Discord double-render bug
+            const fs = require('fs');
+            const path = require('path');
+            let imgBuffer;
+            if (model.image.startsWith('http')) {
+                const imgRes = await fetch(model.image);
+                imgBuffer = await imgRes.arrayBuffer();
+            } else {
+                imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+            }
+            const imgName = `avatar_${model.id}.jpg`;
+            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+
+            embed.setImage(`attachment://${imgName}`);
             embed.setFooter({ text: claimMsg });
 
-            await interaction.update({ content: claimMsg, embeds: [embed], components: [row] });
+            await interaction.update({ content: claimMsg, embeds: [embed], components: [row], files: [attachment] });
             return;
         } catch (err) {
             console.error(err);
