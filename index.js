@@ -630,8 +630,14 @@ client.on('interactionCreate', async (interaction) => {
             const imageUrl = embed.image.url;
             const res = await fetch(imageUrl);
             const buffer = Buffer.from(await res.arrayBuffer());
-            const safeName = embed.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + Date.now();
-            const fileName = safeName + '.jpg';
+            
+            // Generate a clean, short ID based on the English name they inputted
+            let safeName = finalName.replace(/[^a-z0-9]/gi, '').toLowerCase();
+            if (gachaPool.some(m => m.id.startsWith(safeName + '_'))) {
+                safeName += '_' + Math.floor(Math.random() * 1000);
+            }
+            
+            const fileName = safeName + '_' + Date.now() + '.jpg';
             const filePath = path.join(__dirname, 'images', fileName);
             
             if (!fs.existsSync(path.join(__dirname, 'images'))) fs.mkdirSync(path.join(__dirname, 'images'));
