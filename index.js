@@ -1319,7 +1319,7 @@ client.on('interactionCreate', async (interaction) => {
         const authStatus = await updatePlayerWidget(userId);
 
         if (authStatus && !authStatus.success && authStatus.reason === 'unauthorized') {
-            const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&redirect_uri=https%3A%2F%2Fre-start-app.onrender.com%2Fcallback&response_type=code&scope=identify+openid+sdk.social_layer&state=${userId}`;
+            const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&redirect_uri=https%3A%2F%2Fre-start-app.onrender.com%2Fcallback&response_type=code&scope=identify+role_connections.write&state=${userId}`;
             
             const embed = new EmbedBuilder()
                 .setColor(0xe74c3c)
