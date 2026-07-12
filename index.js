@@ -245,6 +245,16 @@ const slashCommands = [
         .setDescription('✅ Post the verification panel (Admin only)')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
+    // ── Economy (Admin only) ──────────────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('addcoins')
+        .setDescription('💰 Give free coins to a user (Admin only)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+        .addUserOption(opt => 
+            opt.setName('user').setDescription('The user to give coins to').setRequired(true))
+        .addIntegerOption(opt => 
+            opt.setName('amount').setDescription('Amount of coins to give').setRequired(true).setMinValue(1)),
+
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('setuproles')
@@ -695,6 +705,26 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred while transferring coins!');
+        }
+    }
+
+    // ── /addcoins (Admin) ─────────────────────────────────────────────────────
+    if (interaction.commandName === 'addcoins') {
+        const targetUser = interaction.options.getUser('user');
+        const amount = interaction.options.getInteger('amount');
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            let receiverRecord = await User.findOne({ userId: targetUser.id });
+            if (!receiverRecord) receiverRecord = new User({ userId: targetUser.id });
+
+            receiverRecord.coins += amount;
+            await receiverRecord.save();
+
+            return interaction.editReply(`✅ Successfully generated and added **🪙 ${amount} coins** to <@${targetUser.id}>! Their new balance is **🪙 ${receiverRecord.coins}**.`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while adding coins!');
         }
     }
 
