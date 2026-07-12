@@ -579,7 +579,17 @@ client.on('interactionCreate', async (interaction) => {
                 .setValue(suggestedName)
                 .setRequired(true);
 
-            modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+            const variantInput = new TextInputBuilder()
+                .setCustomId('avatar_variants')
+                .setLabel('Number of Variants (1=R, 2=SR+R, 3=UR+SR+R)')
+                .setStyle(TextInputStyle.Short)
+                .setValue('3')
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(nameInput),
+                new ActionRowBuilder().addComponents(variantInput)
+            );
             return interaction.showModal(modal);
         }
     }
@@ -634,24 +644,14 @@ client.on('interactionCreate', async (interaction) => {
                 gachaPool.push(newAvatar);
                 addedVariants.push('USSR');
             } else {
-                let hearts = 0;
-                try {
-                    const cheerio = require('cheerio');
-                    const boothRes = await fetch(baseUrl);
-                    const html = await boothRes.text();
-                    const $ = cheerio.load(html);
-                    const heartText = $('.wish-list-button').text().trim().replace(/[^0-9]/g, '');
-                    if (heartText) hearts = parseInt(heartText);
-                } catch (e) {
-                    console.error('Failed to fetch hearts for variant logic', e);
-                }
+                const variants = parseInt(interaction.fields.getTextInputValue('avatar_variants')) || 3;
 
-                if (hearts > 5000) {
+                if (variants >= 3) {
                     gachaPool.push({ id: safeName + '_ur', name: finalName, url: baseUrl, image: fileName, rarity: 'UR', value: 1000, creator });
                     gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
                     gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
                     addedVariants.push('UR', 'SR', 'R');
-                } else if (hearts > 1500) {
+                } else if (variants === 2) {
                     gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
                     gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
                     addedVariants.push('SR', 'R');
