@@ -389,8 +389,37 @@ client.once('ready', async () => {
                     channel.send({ content: '🔔 **The Shop has just refreshed!**', embeds: [embed] }).catch(console.error);
                 }
             }
+
+            // --- Star Drop Logic ---
+            if (!data.nextStarDrop) {
+                // Initialize next drop to be 5-10 hours from now
+                data.nextStarDrop = now + (Math.floor(Math.random() * 6) + 5) * 3600000;
+                saveData(data);
+            } else if (now > data.nextStarDrop) {
+                // Set next drop
+                data.nextStarDrop = now + (Math.floor(Math.random() * 6) + 5) * 3600000;
+                saveData(data);
+
+                const ecoChannel = client.channels.cache.get(ECONOMY_CHANNEL_ID);
+                if (ecoChannel) {
+                    const embed = new EmbedBuilder()
+                        .setColor(0xf1c40f)
+                        .setTitle('🌟 A Star has fallen from the skies!')
+                        .setDescription('A mysterious glowing object has landed! Click to claim its contents... but beware, it might be cursed!')
+                        .setFooter({ text: 'First to click opens it! (It could be Coins, a Gacha Token, or a trap!)' });
+
+                    const claimButton = new ButtonBuilder()
+                        .setCustomId(`grab_star_${Date.now()}`)
+                        .setLabel('Claim Star!')
+                        .setStyle(ButtonStyle.Primary)
+                        .setEmoji('🌟');
+
+                    const row = new ActionRowBuilder().addComponents(claimButton);
+                    ecoChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                }
+            }
         } catch (e) {
-            console.error('Error in shop auto-broadcaster:', e);
+            console.error('Error in background tasks:', e);
         }
     }, 60000);
 });
@@ -486,6 +515,57 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Error claiming coins!', flags: 64 });
+        }
+    }
+
+    // ── Button: Grab Star ─────────────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('grab_star_')) {
+        try {
+            if (interaction.message.components[0].components[0].disabled) {
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this star.', flags: 64 });
+            }
+
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) userRecord = new User({ userId: interaction.user.id });
+
+            const roll = Math.random();
+            let resultMsg = '';
+            let color = 0x95a5a6;
+            
+            if (roll < 0.05) {
+                userRecord.gachaTokens += 1;
+                resultMsg = `✨ **Lucky!** <@${interaction.user.id}> found a **🎟️ Gacha Token** inside!`;
+                color = 0x2ecc71;
+            } else if (roll < 0.70) {
+                const amt = Math.floor(Math.random() * 1500) + 500; // 500 to 2000
+                userRecord.coins += amt;
+                resultMsg = `💰 <@${interaction.user.id}> cracked open the star and found **🪙 ${amt} Coins**!`;
+                color = 0xf1c40f;
+            } else {
+                const amt = Math.floor(Math.random() * 400) + 100; // 100 to 500
+                userRecord.coins = Math.max(0, userRecord.coins - amt);
+                resultMsg = `💀 **Oh no!** The star exploded in <@${interaction.user.id}>'s face and they dropped **🪙 ${amt} Coins**!`;
+                color = 0xe74c3c;
+            }
+
+            await userRecord.save();
+
+            const disabledButton = new ButtonBuilder()
+                .setCustomId('claimed_already')
+                .setLabel(`Claimed by ${interaction.user.username}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true);
+
+            const row = new ActionRowBuilder().addComponents(disabledButton);
+            const embed = new EmbedBuilder()
+                .setColor(color)
+                .setDescription(resultMsg);
+
+            await interaction.update({ embeds: [embed], components: [row] });
+            return;
+        } catch (err) {
+            console.error(err);
+            return interaction.reply({ content: '❌ Error claiming star!', flags: 64 });
         }
     }
 
