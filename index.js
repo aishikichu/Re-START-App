@@ -11,7 +11,8 @@ const {
     ButtonBuilder,
     ButtonStyle,
     PermissionFlagsBits,
-    Partials
+    Partials,
+    AttachmentBuilder
 } = require('discord.js');
 const fs = require('fs');
 const express = require('express');
@@ -1203,13 +1204,16 @@ client.on('interactionCreate', async (interaction) => {
             const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
             const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
 
-            const proxyImage = `https://wsrv.nl/?url=${encodeURIComponent(model.image)}`;
+            // Fetch the image from booth natively to bypass Discord proxy block
+            const imgRes = await fetch(model.image);
+            const imgBuffer = await imgRes.arrayBuffer();
+            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: 'avatar.jpg' });
 
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
                 .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
                 .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
-                .setImage(proxyImage)
+                .setImage('attachment://avatar.jpg')
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
             const claimButton = new ButtonBuilder()
@@ -1220,7 +1224,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(claimButton);
 
-            return interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row] });
+            return interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row], files: [attachment] });
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred during the Gacha roll!');
