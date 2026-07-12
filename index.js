@@ -546,18 +546,18 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     // ── Staff Approval Buttons ───────────────────────────────────────────────
     if (interaction.isButton() && (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('deny_'))) {
-        let userRec = await User.findOne({ userId: interaction.user.id });
-        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) {
-            return interaction.reply({ content: '❌ Only Game Staff can review submissions!', ephemeral: true });
-        }
-
         const isApprove = interaction.customId.startsWith('approve_');
         const isEvent = interaction.customId.includes('event');
         const embed = interaction.message.embeds[0];
 
         if (!isApprove) {
+            await interaction.deferUpdate();
+            let userRec = await User.findOne({ userId: interaction.user.id });
+            if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) {
+                return interaction.followUp({ content: '❌ Only Game Staff can review submissions!', ephemeral: true });
+            }
             const deniedEmbed = EmbedBuilder.from(embed).setColor('#e74c3c').setTitle('❌ Denied: ' + embed.title);
-            return interaction.update({ embeds: [deniedEmbed], components: [] });
+            return interaction.editReply({ embeds: [deniedEmbed], components: [] });
         }
 
         // Show modal for naming
@@ -596,9 +596,14 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── Modal Submit: Approve Avatar ───────────────────────────────────────────
     if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_approve_avatar_')) {
-        const finalName = interaction.fields.getTextInputValue('avatar_name');
-        
         await interaction.deferUpdate();
+        
+        let userRec = await User.findOne({ userId: interaction.user.id });
+        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) {
+            return interaction.followUp({ content: '❌ Only Game Staff can review submissions!', ephemeral: true });
+        }
+
+        const finalName = interaction.fields.getTextInputValue('avatar_name');
         
         try {
             const msg = interaction.message;
