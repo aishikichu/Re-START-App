@@ -23,6 +23,8 @@
 * **Re:BOOTH Gacha:** Over 2,000+ VRChat Booth Avatars to pull, collect, sell, and trade with multi-tier rarities (UR, SR, R, C).
 * **Fun & Moderation:** Magic 8-ball, Starboard, auto-role panels, verification systems, and more.
 
+> 💡 **A Quick Note:** *I originally built this bot specifically for my personal friend group's Discord server, rather than as a massive public community bot. However, it's completely open-source! Feel free to use, modify, and host this code for your own community.*
+
 ---
 
 ## 📚 Documentation & Setup
