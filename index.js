@@ -220,14 +220,23 @@ const slashCommands = [
         .setDescription('View your collection of Booth Avatars'),
     new SlashCommandBuilder()
         .setName('sell')
-        .setDescription('Sell an avatar from your inventory for Coins')
+        .setDescription('Sell a Re:BOOTH avatar from your inventory for Coins')
         .addStringOption(opt => 
             opt.setName('avatar_id').setDescription('The ID of the avatar to sell').setRequired(true)),
     new SlashCommandBuilder()
         .setName('wish')
-        .setDescription('Add or remove an avatar from your wishlist')
+        .setDescription('Add or remove a Re:BOOTH avatar from your wishlist')
         .addStringOption(opt => 
             opt.setName('avatar_id').setDescription('The ID of the avatar to wish for').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('trade')
+        .setDescription('Propose a Re:BOOTH avatar trade with another user!')
+        .addUserOption(opt => 
+            opt.setName('user').setDescription('The user you want to trade with').setRequired(true))
+        .addStringOption(opt => 
+            opt.setName('give_id').setDescription('The ID of the avatar you are giving').setRequired(true))
+        .addStringOption(opt => 
+            opt.setName('receive_id').setDescription('The ID of the avatar you want from them').setRequired(true)),
 
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
@@ -333,6 +342,65 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Error claiming avatar!', flags: 64 });
+        }
+    }
+
+    // ── Button: Trade Accept/Decline ──────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('trade_')) {
+        const parts = interaction.customId.split('_');
+        const action = parts[1]; // 'accept' or 'decline'
+        const senderId = parts[2];
+        const targetId = parts[3];
+        const giveId = parts[4];
+        const receiveId = parts[5];
+
+        // Only the target user can click the buttons
+        if (interaction.user.id !== targetId) {
+            return interaction.reply({ content: '❌ This trade proposal is not for you!', flags: 64 });
+        }
+
+        try {
+            if (action === 'decline') {
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0xe74c3c)
+                    .setTitle('🤝 Trade Declined');
+                await interaction.update({ embeds: [embed], components: [] });
+                return;
+            }
+
+            if (action === 'accept') {
+                let senderRecord = await User.findOne({ userId: senderId });
+                let targetRecord = await User.findOne({ userId: targetId });
+
+                // Verify both users still own the items
+                if (!senderRecord || !senderRecord.inventory.includes(giveId)) {
+                    return interaction.reply({ content: `❌ Trade failed! <@${senderId}> no longer owns \`${giveId}\`.`, flags: 64 });
+                }
+                if (!targetRecord || !targetRecord.inventory.includes(receiveId)) {
+                    return interaction.reply({ content: `❌ Trade failed! You no longer own \`${receiveId}\`.`, flags: 64 });
+                }
+
+                // Swap the items
+                senderRecord.inventory.splice(senderRecord.inventory.indexOf(giveId), 1);
+                senderRecord.inventory.push(receiveId);
+
+                targetRecord.inventory.splice(targetRecord.inventory.indexOf(receiveId), 1);
+                targetRecord.inventory.push(giveId);
+
+                await senderRecord.save();
+                await targetRecord.save();
+
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x2ecc71)
+                    .setTitle('🤝 Trade Accepted!')
+                    .setDescription(`The trade was successful!\n\n<@${senderId}> received **${receiveId}**\n<@${targetId}> received **${giveId}**`);
+                
+                await interaction.update({ embeds: [embed], components: [] });
+                return;
+            }
+        } catch (err) {
+            console.error(err);
+            return interaction.reply({ content: '❌ Error processing trade!', flags: 64 });
         }
     }
 
@@ -669,7 +737,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
-                .setTitle(`🎰 Gacha Roll by ${interaction.user.username}`)
+                .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}`)
                 .setDescription(`**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
                 .setImage(model.image)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
@@ -723,7 +791,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const embed = new EmbedBuilder()
                 .setColor(0x3498db)
-                .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
+                .setTitle(`🎒 ${interaction.user.username}'s Re:BOOTH Inventory`)
                 .setDescription(desc || 'Nothing here yet!')
                 .addFields(
                     { name: '🎟️ Tokens', value: `${userRecord.gachaTokens}`, inline: true },
@@ -805,6 +873,67 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error updating wishlist!');
+        }
+    }
+
+    // ── /trade ────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'trade') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        
+        const targetUser = interaction.options.getUser('user');
+        const giveId = interaction.options.getString('give_id').toLowerCase();
+        const receiveId = interaction.options.getString('receive_id').toLowerCase();
+        await interaction.deferReply();
+
+        if (targetUser.id === interaction.user.id || targetUser.bot) {
+            return interaction.editReply('❌ You cannot trade with yourself or a bot!');
+        }
+
+        try {
+            // Check if models exist in the game
+            const giveModel = gachaPool.find(m => m.id === giveId);
+            const receiveModel = gachaPool.find(m => m.id === receiveId);
+            if (!giveModel || !receiveModel) {
+                return interaction.editReply('❌ One or both of those avatar IDs do not exist in Re:BOOTH!');
+            }
+
+            // Verify both users own the items
+            let senderRecord = await User.findOne({ userId: interaction.user.id });
+            let targetRecord = await User.findOne({ userId: targetUser.id });
+
+            if (!senderRecord || !senderRecord.inventory.includes(giveId)) {
+                return interaction.editReply(`❌ You do not own an avatar with the ID \`${giveId}\`!`);
+            }
+            if (!targetRecord || !targetRecord.inventory.includes(receiveId)) {
+                return interaction.editReply(`❌ <@${targetUser.id}> does not own an avatar with the ID \`${receiveId}\`!`);
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0xf39c12)
+                .setTitle('🤝 Re:BOOTH Trade Offer')
+                .setDescription(`<@${targetUser.id}>, you have received a trade offer from <@${interaction.user.id}>!`)
+                .addFields(
+                    { name: 'They will give you:', value: `**[${giveModel.rarity}] ${giveModel.name}**`, inline: true },
+                    { name: 'You will give them:', value: `**[${receiveModel.rarity}] ${receiveModel.name}**`, inline: true }
+                )
+                .setFooter({ text: 'Click below to accept or decline!' });
+
+            const acceptButton = new ButtonBuilder()
+                .setCustomId(`trade_accept_${interaction.user.id}_${targetUser.id}_${giveId}_${receiveId}`)
+                .setLabel('Accept Trade')
+                .setStyle(ButtonStyle.Success);
+            
+            const declineButton = new ButtonBuilder()
+                .setCustomId(`trade_decline_${interaction.user.id}_${targetUser.id}_${giveId}_${receiveId}`)
+                .setLabel('Decline')
+                .setStyle(ButtonStyle.Danger);
+
+            const row = new ActionRowBuilder().addComponents(acceptButton, declineButton);
+
+            return interaction.editReply({ content: `<@${targetUser.id}>`, embeds: [embed], components: [row] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while creating the trade offer!');
         }
     }
 
