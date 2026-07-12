@@ -239,7 +239,14 @@ const slashCommands = [
         .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
     new SlashCommandBuilder()
         .setName('inventory')
-        .setDescription('View your collection of Booth Avatars'),
+        .setDescription("View yours or another user's collection of Booth Avatars")
+        .addUserOption(opt =>
+            opt.setName('user').setDescription('The user whose inventory you want to view').setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('lookup')
+        .setDescription('Look up a specific avatar to see its stats and who owns it')
+        .addStringOption(opt =>
+            opt.setName('avatar_id').setDescription('The ID of the avatar').setRequired(true)),
     new SlashCommandBuilder()
         .setName('sell')
         .setDescription('Sell a Re:BOOTH avatar from your inventory for Coins')
@@ -1306,6 +1313,16 @@ client.on('interactionCreate', async (interaction) => {
             const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
             const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
 
+            // Check if anyone owns this avatar
+            const owners = await User.find({ inventory: model.id });
+            let ownershipText = '';
+            if (owners.length > 0) {
+                const ownerMentions = owners.map(o => `<@${o.userId}>`).join(', ');
+                ownershipText = `\n\n🧍 **Belongs to:** ${ownerMentions}`;
+            } else {
+                ownershipText = `\n\n🧍 **Belongs to:** *Unclaimed*`;
+            }
+
             // Fetch the image from booth natively to bypass Discord proxy block
             const imgRes = await fetch(model.image);
             const imgBuffer = await imgRes.arrayBuffer();
@@ -1315,7 +1332,7 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
                 .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
-                .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
+                .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}${ownershipText}`)
                 .setImage(`attachment://${imgName}`)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
@@ -1338,11 +1355,12 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'inventory') {
         if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
         
+        const targetUser = interaction.options.getUser('user') || interaction.user;
         await interaction.deferReply();
         try {
-            const userRecord = await User.findOne({ userId: interaction.user.id });
+            const userRecord = await User.findOne({ userId: targetUser.id });
             if (!userRecord || userRecord.inventory.length === 0) {
-                return interaction.editReply('🎒 Your inventory is completely empty! Buy some tokens and use `/gacha`!');
+                return interaction.editReply(`🎒 ${targetUser.username}'s inventory is completely empty!`);
             }
 
             let totalValue = 0;
@@ -1370,7 +1388,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const embed = new EmbedBuilder()
                 .setColor(embedColor)
-                .setTitle(`🎒 ${interaction.user.username}'s Re:BOOTH Inventory`)
+                .setTitle(`🎒 ${targetUser.username}'s Re:BOOTH Inventory`)
                 .setDescription(desc || 'Nothing here yet!')
                 .addFields(
                     { name: '🎟️ Tokens', value: `${userRecord.gachaTokens}`, inline: true },
@@ -1381,6 +1399,47 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error loading inventory!');
+        }
+    }
+
+    // ── /lookup ───────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'lookup') {
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+        await interaction.deferReply();
+
+        try {
+            const model = gachaPool.find(m => m.id === avatarId || m.name.toLowerCase().includes(avatarId));
+            if (!model) {
+                return interaction.editReply(`❌ Could not find any avatar matching \`${avatarId}\` in the database!`);
+            }
+
+            const owners = await User.find({ inventory: model.id });
+            let ownershipText = '*Unclaimed*';
+            if (owners.length > 0) {
+                // To avoid massive embeds if many people own it, cap at 15
+                const ownerMentions = owners.slice(0, 15).map(o => `<@${o.userId}>`).join(', ');
+                ownershipText = ownerMentions + (owners.length > 15 ? `... and ${owners.length - 15} more` : '');
+            }
+
+            const colors = { 'UR': 0xff00ff, 'SR': 0xf1c40f, 'R': 0x3498db, 'C': 0x95a5a6 };
+
+            const imgRes = await fetch(model.image);
+            const imgBuffer = await imgRes.arrayBuffer();
+            const imgName = `avatar_${model.id}.jpg`;
+            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+
+            const embed = new EmbedBuilder()
+                .setColor(colors[model.rarity] || 0x95a5a6)
+                .setTitle(`🔍 Avatar Lookup: ${model.name}`)
+                .setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n\n🧍 **Belongs to:**\n${ownershipText}`)
+                .setImage(`attachment://${imgName}`);
+
+            return interaction.editReply({ embeds: [embed], files: [attachment] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error looking up avatar!');
         }
     }
 
