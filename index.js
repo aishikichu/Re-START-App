@@ -213,7 +213,7 @@ const slashCommands = [
         .setName('buy')
         .setDescription('Buy an item from the shop')
         .addStringOption(opt => 
-            opt.setName('item').setDescription('Item to buy').setRequired(true).addChoices({ name: 'Gacha Token (500 Coins)', value: 'token' })),
+            opt.setName('item').setDescription('Item to buy').setRequired(true).addChoices({ name: '🎟️ Gacha Token', value: 'token' })),
     new SlashCommandBuilder()
         .setName('gacha')
         .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
@@ -922,11 +922,13 @@ client.on('interactionCreate', async (interaction) => {
             const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
             const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
 
+            const proxyImage = `https://wsrv.nl/?url=${encodeURIComponent(model.image)}`;
+
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
                 .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
                 .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
-                .setImage(model.image)
+                .setImage(proxyImage)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
             const claimButton = new ButtonBuilder()
