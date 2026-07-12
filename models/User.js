@@ -14,8 +14,12 @@ const userSchema = new mongoose.Schema({
     activeXpBoost: { type: Date, default: null }, // Timestamp of when it expires
     showcase: { type: [String], default: [] }, // Array of avatar IDs for profile
     badges: { type: [String], default: [] },    // Array of emoji strings
-    affinity: { type: Number, default: 0 },     // Affinity points for dupes
-    vipExpiresAt: { type: Date, default: null } // VIP mode expiration
+    affinity: { type: Number, default: 0 },     // Affinity points for dupes (Legacy)
+    avatarAffinity: { type: Map, of: Number, default: {} }, // Per-avatar duplicates Map
+    isGameStaff: { type: Boolean, default: false }, // Staff permission flag
+    lastSubmissionRewardDate: { type: Date, default: null }, // Daily reward tracker
+    vipExpiresAt: { type: Date, default: null }, // VIP mode expiration
+    badLuckExpiresAt: { type: Date, default: null } // Bad Luck expiration
 });
 
 module.exports = mongoose.model('User', userSchema);

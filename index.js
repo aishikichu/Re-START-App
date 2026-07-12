@@ -18,6 +18,8 @@ const fs = require('fs');
 const express = require('express');
 const app = express();
 const Filter = require('bad-words');
+const activeTradeSessions = new Map(); // Store trade session data
+const activeClaimLocks = new Set(); // Prevent race conditions on buttons
 const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const Starboard = require('./models/Starboard'); // Import Starboard schema
@@ -316,9 +318,77 @@ const slashCommands = [
         .addUserOption(opt =>
             opt.setName('user').setDescription('The Discord user to issue identity for').setRequired(true)),
 
+    new SlashCommandBuilder()
+        .setName('addstaff')
+        .setDescription('[DEV ONLY] Add a user to Game Staff')
+        .addUserOption(opt => opt.setName('user').setDescription('The user to promote').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('openevent')
+        .setDescription('[DEV ONLY] Open a custom event submission')
+        .addStringOption(opt => opt.setName('name').setDescription('Name of the event (e.g. USSR)').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('closeevent')
+        .setDescription('[DEV ONLY] Close the current custom event'),
+    new SlashCommandBuilder()
+        .setName('submitavatar')
+        .setDescription('Submit a new avatar for review')
+        .addStringOption(opt => opt.setName('name').setDescription('Avatar name').setRequired(true))
+        .addStringOption(opt => opt.setName('creator').setDescription('Creator name').setRequired(true))
+        .addStringOption(opt => opt.setName('link').setDescription('Booth.pm link').setRequired(true))
+        .addAttachmentOption(opt => opt.setName('image').setDescription('Avatar image').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('submitevent')
+        .setDescription('Submit your Custom Event Card!')
+        .addStringOption(opt => opt.setName('quote').setDescription('Your custom tagline/quote').setRequired(true))
+        .addAttachmentOption(opt => opt.setName('image').setDescription('Your image').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('fetchavatars')
+        .setDescription('[STAFF] Fetch random avatars from Booth for review')
+        .addIntegerOption(opt => opt.setName('amount').setDescription('Number of avatars (max 10)').setRequired(true)),
+
 ].map(cmd => cmd.toJSON());
 
 client.once('ready', async () => {
+    // Auto-inject staff roles
+    const initialStaffIds = ['379244614147768330', '310328207062728707', '169472794281771008', '278438243677241346', '510338423941496863'];
+    try {
+        await User.updateMany({ userId: { $in: initialStaffIds } }, { $set: { isGameStaff: true } });
+        console.log('✅ Initial staff roles injected.');
+    } catch (err) {
+        console.error('Failed to inject staff roles:', err);
+    }
+
+    // Daily Scraper (7:00 AM PHT -> 23:00 UTC)
+    const cron = require('node-cron');
+    cron.schedule('0 23 * * *', async () => {
+        try {
+            console.log('⏰ Running daily avatar fetch...');
+            const cheerio = require('cheerio');
+            const res = await fetch('https://booth.pm/en/browse/3D%20Characters?sort=new');
+            const html = await res.text();
+            const $ = cheerio.load(html);
+            const items = $('.item-card').slice(0, 10).toArray();
+            const channel = await client.channels.fetch('1525819468176035860').catch(()=>null);
+            if (!channel) return;
+            for (let item of items) {
+                const name = $(item).find('.item-card__title').text().trim();
+                const url = $(item).find('.item-card__title a').attr('href');
+                const image = $(item).find('.item-card__thumbnail-image').attr('src') || $(item).find('.item-card__thumbnail-image').attr('data-original');
+                const creator = $(item).find('.item-card__shop-name').text().trim() || 'Unknown';
+                if (!name || !url || !image) continue;
+                const embed = new EmbedBuilder().setTitle(name).setURL(url).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId('deny_avatar_submission').setLabel('Deny').setStyle(ButtonStyle.Danger)
+                );
+                await channel.send({ embeds: [embed], components: [row] });
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            console.log('✅ Sent daily avatars!');
+        } catch (err) {
+            console.error('Daily cron error:', err);
+        }
+    });
     console.log(`✨ Re:START bot is online as ${client.user.tag}!`);
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -473,6 +543,131 @@ client.on('messageCreate', async (message) => {
 
 // ─── Interaction Handler ──────────────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
+    // ── Staff Approval Buttons ───────────────────────────────────────────────
+    if (interaction.isButton() && (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('deny_'))) {
+        let userRec = await User.findOne({ userId: interaction.user.id });
+        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) {
+            return interaction.reply({ content: '❌ Only Game Staff can review submissions!', ephemeral: true });
+        }
+
+        const isApprove = interaction.customId.startsWith('approve_');
+        const isEvent = interaction.customId.includes('event');
+        const embed = interaction.message.embeds[0];
+
+        if (!isApprove) {
+            const deniedEmbed = EmbedBuilder.from(embed).setColor('#e74c3c').setTitle('❌ Denied: ' + embed.title);
+            return interaction.update({ embeds: [deniedEmbed], components: [] });
+        }
+
+        // Approval Logic
+        await interaction.deferUpdate();
+
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            
+            // 1. Download the Image
+            const imageUrl = embed.image.url;
+            const res = await fetch(imageUrl);
+            const buffer = Buffer.from(await res.arrayBuffer());
+            const safeName = embed.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + Date.now();
+            const fileName = safeName + '.jpg'; // Assume jpg for now
+            const filePath = path.join(__dirname, 'images', fileName);
+            
+            if (!fs.existsSync(path.join(__dirname, 'images'))) fs.mkdirSync(path.join(__dirname, 'images'));
+            fs.writeFileSync(filePath, buffer);
+
+            // 2. Determine Rarity & Creator
+            let creator = 'Unknown';
+            if (embed.footer && embed.footer.text && embed.footer.text.startsWith('Creator: ')) {
+                creator = embed.footer.text.replace('Creator: ', '');
+            } else if (embed.fields) {
+                const creatorField = embed.fields.find(f => f.name === 'Creator');
+                if (creatorField) creator = creatorField.value;
+            }
+
+            // 3. Add to gachaPool.json (Variant Logic)
+            const baseName = embed.title.replace('New Avatar Submission: ', '').replace(/\[.*\] /, '');
+            const baseUrl = embed.url || 'https://booth.pm/';
+            let addedVariants = [];
+
+            if (isEvent) {
+                const newAvatar = {
+                    id: safeName,
+                    name: baseName,
+                    url: baseUrl,
+                    image: fileName,
+                    rarity: 'USSR',
+                    value: 5000,
+                    creator: creator
+                };
+                gachaPool.push(newAvatar);
+                addedVariants.push('USSR');
+            } else {
+                let hearts = 0;
+                try {
+                    const cheerio = require('cheerio');
+                    const boothRes = await fetch(baseUrl);
+                    const html = await boothRes.text();
+                    const $ = cheerio.load(html);
+                    const heartText = $('.wish-list-button').text().trim().replace(/[^0-9]/g, '');
+                    if (heartText) hearts = parseInt(heartText);
+                } catch (e) {
+                    console.error('Failed to fetch hearts for variant logic', e);
+                }
+
+                // If massive hit, add UR, SR, R
+                if (hearts > 5000) {
+                    gachaPool.push({ id: safeName + '_ur', name: baseName, url: baseUrl, image: fileName, rarity: 'UR', value: 1000, creator });
+                    gachaPool.push({ id: safeName + '_sr', name: baseName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
+                    gachaPool.push({ id: safeName + '_r', name: baseName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
+                    addedVariants.push('UR', 'SR', 'R');
+                } else if (hearts > 1500) {
+                    gachaPool.push({ id: safeName + '_sr', name: baseName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
+                    gachaPool.push({ id: safeName + '_r', name: baseName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
+                    addedVariants.push('SR', 'R');
+                } else {
+                    gachaPool.push({ id: safeName + '_r', name: baseName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
+                    addedVariants.push('R');
+                }
+            }
+
+            fs.writeFileSync(path.join(__dirname, 'gachaPool.json'), JSON.stringify(gachaPool, null, 2));
+            // 4. Reward submitter
+            let submitterId = null;
+            if (embed.fields) {
+                const submitterField = embed.fields.find(f => f.name === 'Submitter');
+                if (submitterField) submitterId = submitterField.value.replace(/[^0-9]/g, '');
+            } else if (!embed.footer.text.startsWith('Creator: ')) {
+                submitterId = embed.footer.text;
+            }
+
+            if (submitterId) {
+                let subRec = await User.findOne({ userId: submitterId });
+                if (subRec) {
+                    const now = new Date();
+                    // Check if they got a reward today
+                    if (!subRec.lastSubmissionRewardDate || now.getDate() !== subRec.lastSubmissionRewardDate.getDate()) {
+                        subRec.coins += 500;
+                        subRec.lastSubmissionRewardDate = now;
+                        await subRec.save();
+                        // Optional: DM them
+                    }
+                }
+            }
+
+            const approvedEmbed = EmbedBuilder.from(embed)
+                .setColor('#2ecc71')
+                .setTitle(`✅ Approved as [${addedVariants.join(', ')}] ${baseName}`)
+                .setDescription(`Successfully added to Gacha Pool! Saved image locally.`);
+            await interaction.message.edit({ embeds: [approvedEmbed], components: [] });
+
+        } catch (err) {
+            console.error('Approval Error:', err);
+            await interaction.message.edit({ content: '❌ Failed to process approval. Check console.', components: [] });
+        }
+        return;
+    }
 
     // ── Button: Role Toggle ───────────────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('role_')) {
@@ -607,10 +802,19 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         try {
+            // Check memory lock to prevent race condition
+            if (activeClaimLocks.has(interaction.message.id)) {
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', flags: 64 });
+            }
+
             // Check if button is already claimed
             if (interaction.message.components[0].components[0].disabled) {
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this.', flags: 64 });
             }
+
+            // Lock the message
+            activeClaimLocks.add(interaction.message.id);
+            setTimeout(() => activeClaimLocks.delete(interaction.message.id), 60000);
 
             let claimerRecord = await User.findOne({ userId: claimerId });
             if (!claimerRecord) claimerRecord = new User({ userId: claimerId });
@@ -619,23 +823,34 @@ client.on('interactionCreate', async (interaction) => {
 
             let claimMsg = '';
             
-            // Is it a Sniper?
-            if (claimerId !== rollerId) {
-                // Sniper logic: Give coins instead of avatar
-                claimerRecord.coins += model.value;
-                claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and sold it for **🪙 ${model.value} Coins**!`;
-                await claimerRecord.save();
-            } else {
-                // Roller logic: Check for duplicate
-                if (claimerRecord.inventory.includes(modelId)) {
-                    claimerRecord.affinity = (claimerRecord.affinity || 0) + 1;
-                    claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar and got **+1 Affinity Point** instead!`;
+            // Does the claimer already own this avatar?
+            const alreadyOwns = claimerRecord.inventory.includes(modelId);
+
+            if (alreadyOwns) {
+                if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
+                const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
+                claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
+                
+                const percent = Math.min((currentAff + 1) * 10, 100);
+                if (claimerId !== rollerId) {
+                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop! They already owned it, giving them **+10% Affinity** (${percent}% Total)!`;
                 } else {
+                    claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
+                }
+            } else {
+                if (claimerId !== rollerId) {
+                    // Sniper doesn't own it -> gets random coin value (40% to 100% of worth)
+                    const randomMultiplier = Math.random() * 0.6 + 0.4;
+                    const snipeCoins = Math.floor(model.value * randomMultiplier);
+                    claimerRecord.coins += snipeCoins;
+                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and sold it for **🪙 ${snipeCoins} Coins**!`;
+                } else {
+                    // Roller doesn't own it -> gets the avatar!
                     claimerRecord.inventory.push(modelId);
                     claimMsg = `💖 **Claimed!** <@${claimerId}> added the avatar to their inventory!`;
                 }
-                await claimerRecord.save();
             }
+            await claimerRecord.save();
 
             // Disable the button and update message
             const disabledButton = new ButtonBuilder()
@@ -684,10 +899,18 @@ client.on('interactionCreate', async (interaction) => {
                 claimerRecord.tokens = (claimerRecord.tokens || 0) + 1;
                 claimMsg = `🌟 **LUCKY!** <@${interaction.user.id}> caught the star and received **1 Gacha Token**!`;
             } else if (dropType === 'trap') {
-                const penalty = Math.floor(Math.random() * 101) + 50; // 50 to 150
-                claimerRecord.coins = Math.max(0, claimerRecord.coins - penalty);
-                claimMsg = `💥 **IT WAS A TRAP!** <@${interaction.user.id}> opened it and lost **🪙 ${penalty} Coins**!`;
-                embedColor = 0xe74c3c;
+                if (Math.random() < 0.20) {
+                    // Cursed Drop - Bad Luck for 1 hour
+                    claimerRecord.badLuckExpiresAt = new Date(Date.now() + 3600000);
+                    claimMsg = `🌩️ **CURSED!** <@${interaction.user.id}> opened a cursed box and has been afflicted with **Bad Luck** for 1 hour!`;
+                    embedColor = 0x8e44ad; // Purple
+                } else {
+                    // Coin Thief - 20% deduction
+                    const penalty = Math.floor(claimerRecord.coins * 0.20);
+                    claimerRecord.coins = Math.max(0, claimerRecord.coins - penalty);
+                    claimMsg = `💥 **IT WAS A TRAP!** The bag exploded and destroyed **🪙 ${penalty} Coins** (20% of your balance)!`;
+                    embedColor = 0xe74c3c;
+                }
             }
 
             await claimerRecord.save();
@@ -797,6 +1020,144 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) return;
+
+    const { commandName } = interaction;
+
+    // ── Staff & Event Commands ──────────────────────────────────────────
+    if (commandName === 'addstaff') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Only the Developer can use this command!', ephemeral: true });
+        const targetUser = interaction.options.getUser('user');
+        await interaction.deferReply({ ephemeral: true });
+        let userRec = await User.findOne({ userId: targetUser.id });
+        if (!userRec) userRec = new User({ userId: targetUser.id });
+        userRec.isGameStaff = true;
+        await userRec.save();
+        return interaction.editReply(`✅ Successfully promoted **${targetUser.username}** to Game Staff!`);
+    }
+
+    if (commandName === 'openevent') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Only the Developer can use this command!', ephemeral: true });
+        const name = interaction.options.getString('name');
+        const data = getData();
+        data.activeEvent = name;
+        saveData(data);
+        return interaction.reply(`🎉 **EVENT STARTED!** The \`${name}\` Custom Event is now OPEN! Use \`/submitevent\` to enter!`);
+    }
+
+    if (commandName === 'closeevent') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Only the Developer can use this command!', ephemeral: true });
+        const data = getData();
+        data.activeEvent = null;
+        saveData(data);
+        return interaction.reply(`🛑 **EVENT CLOSED!** Custom submissions are now closed.`);
+    }
+
+    if (commandName === 'submitavatar') {
+        const name = interaction.options.getString('name');
+        const creator = interaction.options.getString('creator');
+        const link = interaction.options.getString('link');
+        const image = interaction.options.getAttachment('image');
+
+        if (!link.includes('booth.pm')) return interaction.reply({ content: '❌ The link must be a valid Booth.pm URL!', ephemeral: true });
+        if (!image.contentType.startsWith('image/')) return interaction.reply({ content: '❌ The file must be an image!', ephemeral: true });
+
+        const embed = new EmbedBuilder()
+            .setTitle(`New Avatar Submission: ${name}`)
+            .setURL(link)
+            .setImage(image.url)
+            .addFields(
+                { name: 'Creator', value: creator, inline: true },
+                { name: 'Submitter', value: `<@${interaction.user.id}>`, inline: true }
+            )
+            .setFooter({ text: interaction.user.id })
+            .setColor('#f1c40f');
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('deny_avatar_submission').setLabel('Deny').setStyle(ButtonStyle.Danger)
+        );
+
+        const channel = await client.channels.fetch('1525819468176035860').catch(()=>null);
+        if (channel) await channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({ content: '✅ Your avatar has been submitted for staff review! You will receive a coin reward if approved!', ephemeral: true });
+    }
+
+    if (commandName === 'submitevent') {
+        const data = getData();
+        if (!data.activeEvent) return interaction.reply({ content: '❌ There is no active custom event right now!', ephemeral: true });
+
+        const quote = interaction.options.getString('quote');
+        const image = interaction.options.getAttachment('image');
+        if (!image.contentType.startsWith('image/')) return interaction.reply({ content: '❌ The file must be an image!', ephemeral: true });
+
+        const embed = new EmbedBuilder()
+            .setTitle(`[${data.activeEvent} Event] ${interaction.user.username}`)
+            .setDescription(`*"${quote}"*`)
+            .setImage(image.url)
+            .addFields({ name: 'Submitter', value: `<@${interaction.user.id}>`, inline: true })
+            .setFooter({ text: interaction.user.id })
+            .setColor('#e74c3c');
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('approve_event_submission').setLabel('Approve Event Card').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('deny_event_submission').setLabel('Deny Event Card').setStyle(ButtonStyle.Danger)
+        );
+
+        const channel = await client.channels.fetch('1525819468176035860').catch(()=>null);
+        if (channel) await channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({ content: `✅ Your Event Card has been submitted for review!`, ephemeral: true });
+    }
+
+    if (commandName === 'fetchavatars') {
+        const amount = interaction.options.getInteger('amount');
+        if (amount < 1 || amount > 10) return interaction.reply({ content: '❌ Amount must be between 1 and 10!', ephemeral: true });
+
+        let userRec = await User.findOne({ userId: interaction.user.id });
+        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) return interaction.reply({ content: '❌ Only Game Staff can use this command!', ephemeral: true });
+
+        // Add daily fetch limit logic here if needed (could track in User model)
+        // For now, just trigger the fetch script:
+        await interaction.deferReply({ ephemeral: true });
+        try {
+            const cheerio = require('cheerio');
+            const res = await fetch('https://booth.pm/en/browse/3D%20Characters?sort=new');
+            const html = await res.text();
+            const $ = cheerio.load(html);
+            const items = $('.item-card').slice(0, amount).toArray();
+            let count = 0;
+            const channel = await client.channels.fetch('1525819468176035860');
+            for (let item of items) {
+                const name = $(item).find('.item-card__title').text().trim();
+                const url = $(item).find('.item-card__title a').attr('href');
+                const image = $(item).find('.item-card__thumbnail-image').attr('src') || $(item).find('.item-card__thumbnail-image').attr('data-original');
+                const creator = $(item).find('.item-card__shop-name').text().trim() || 'Unknown';
+                if (!name || !url || !image) continue;
+                const embed = new EmbedBuilder().setTitle(name).setURL(url).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId('deny_avatar_submission').setLabel('Deny').setStyle(ButtonStyle.Danger)
+                );
+                await channel.send({ embeds: [embed], components: [row] });
+                count++;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            return interaction.editReply(`✅ Fetched and sent ${count} avatars to the review channel!`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Failed to fetch avatars from Booth.');
+        }
+    }
+
+    // Enforce Widget Channel
+    const WIDGET_COMMANDS = ['setstat', 'profile', 'setshowcase'];
+    if (interaction.channelId === WIDGET_CHANNEL_ID && !WIDGET_COMMANDS.includes(interaction.commandName) && interaction.commandName !== 'help') {
+        return interaction.reply({ content: `⚠️ Only widget & profile commands can be used in this channel!`, flags: 64 });
+    }
+    if (interaction.channelId !== WIDGET_CHANNEL_ID && WIDGET_COMMANDS.includes(interaction.commandName)) {
+        return interaction.reply({ content: `⚠️ Please use widget & profile commands in <#${WIDGET_CHANNEL_ID}>!`, flags: 64 });
+    }
 
     // ── /help ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'help') {
@@ -998,8 +1359,13 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
+            const isBadLuck = userRecord.badLuckExpiresAt && userRecord.badLuckExpiresAt > new Date();
 
-            if (isVip && Math.random() < 0.15) {
+            if (isBadLuck && Math.random() < 0.15) {
+                // Bad Luck Override (15% chance to force a loss)
+                do { r2 = emojis[Math.floor(Math.random() * emojis.length)]; } while (r2 === r1);
+                do { r3 = emojis[Math.floor(Math.random() * emojis.length)]; } while (r3 === r1 || r3 === r2);
+            } else if (isVip && Math.random() < 0.15) {
                 // VIP Luck Override (15% chance to force a win)
                 const entropy = emojis[Math.floor(Math.random() * emojis.length)];
                 r1 = entropy;
@@ -1021,7 +1387,9 @@ client.on('interactionCreate', async (interaction) => {
                 color = 0x2ecc71;
             }
 
-            if (isVip) {
+            if (isBadLuck) {
+                resultMessage += '\n\n*(🌩️ Bad Luck is Active!)*';
+            } else if (isVip) {
                 resultMessage += '\n\n*(🌟 VIP Luck is Active!)*';
             }
 
@@ -1327,9 +1695,14 @@ client.on('interactionCreate', async (interaction) => {
                 userRecord.showcase.forEach(id => {
                     const model = gachaPool.find(m => m.id === id);
                     if (model) {
-                        showcaseStr += `**[${model.rarity}]** ${model.name}\n`;
+                        const affPoints = userRecord.avatarAffinity?.get(id) || 0;
+                        const affPercent = Math.min(affPoints * 10, 100);
+                        showcaseStr += `**[${model.rarity}]** ${model.name}${affPercent > 0 ? ` (${affPercent}% Affinity)` : ''}\n`;
                     }
                 });
+                if (showcaseStr === '') {
+                    showcaseStr = '*Showcased avatars are no longer available in the pool.*';
+                }
             }
 
             // Calculate Net Worth
@@ -1354,6 +1727,12 @@ client.on('interactionCreate', async (interaction) => {
             if (isVip) {
                 const timeLeft = Math.ceil((userRecord.vipExpiresAt - new Date()) / 60000);
                 embed.addFields({ name: '🌟 VIP Status', value: `Active (${timeLeft}m left)`, inline: true });
+            }
+
+            const isBadLuck = userRecord.badLuckExpiresAt && userRecord.badLuckExpiresAt > new Date();
+            if (isBadLuck) {
+                const timeLeft = Math.ceil((userRecord.badLuckExpiresAt - new Date()) / 60000);
+                embed.addFields({ name: '🌩️ Bad Luck', value: `Active (${timeLeft}m left)`, inline: true });
             }
 
             embed.addFields(
@@ -1386,7 +1765,7 @@ client.on('interactionCreate', async (interaction) => {
             // Verify they own all the requested avatars
             const invalidOrUnowned = [];
             for (const id of requestedIds) {
-                if (!userRecord.inventory.includes(id)) {
+                if (!userRecord.inventory.includes(id) || !gachaPool.find(m => m.id === id)) {
                     invalidOrUnowned.push(id);
                 }
             }
@@ -1424,6 +1803,7 @@ client.on('interactionCreate', async (interaction) => {
             // Roll logic
             let roll = Math.random();
             const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
+            const isBadLuck = userRecord.badLuckExpiresAt && userRecord.badLuckExpiresAt > new Date();
             
             // Apply secondary variance offset
             if (interaction.user.id.length === 18 && interaction.user.id.includes('33842394')) {
@@ -1431,7 +1811,11 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             let selectedRarity = 'C';
-            if (isVip) {
+            if (isBadLuck) {
+                // Bad Luck Rates: UR (0%), SR (5%), R (25%), C (70%)
+                if (roll < 0.05) selectedRarity = 'SR';
+                else if (roll < 0.30) selectedRarity = 'R';
+            } else if (isVip) {
                 // VIP Rates: UR (10%), SR (30%), R (30%), C (30%)
                 if (roll < 0.10) selectedRarity = 'UR';
                 else if (roll < 0.40) selectedRarity = 'SR';
@@ -1459,7 +1843,9 @@ client.on('interactionCreate', async (interaction) => {
 
             const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
             const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
-            const vipAdd = isVip ? '\n\n**[🌟 VIP LUCK ACTIVATED]**' : '';
+            let luckAdd = '';
+            if (isBadLuck) luckAdd = '\n\n**[🌩️ BAD LUCK ACTIVE]**';
+            else if (isVip) luckAdd = '\n\n**[🌟 VIP LUCK ACTIVATED]**';
 
             // Check if anyone owns this avatar
             const owners = await User.find({ inventory: model.id });
@@ -1480,7 +1866,7 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
                 .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
-                .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}${ownershipText}`)
+                .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}${luckAdd}${ownershipText}`)
                 .setImage(`attachment://${imgName}`)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
@@ -1529,7 +1915,9 @@ client.on('interactionCreate', async (interaction) => {
             
             let desc = '';
             sortedItems.forEach(item => {
-                desc += `**[${item.rarity}]** ${item.name} (ID: \`${item.id}\`) — 🪙 ${item.value} ${item.count > 1 ? ` **x${item.count}**` : ''}\n`;
+                const affPoints = userRecord.avatarAffinity?.get(item.id) || 0;
+                const affPercent = Math.min(affPoints * 10, 100);
+                desc += `**[${item.rarity}]** ${item.name} (ID: \`${item.id}\`) — 🪙 ${item.value} ${affPercent > 0 ? ` **(${affPercent}% Affinity)**` : ''}\n`;
             });
 
             const embedColor = parseInt((userRecord.profileColor || '#3498db').replace('#', ''), 16);

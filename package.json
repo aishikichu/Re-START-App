@@ -12,9 +12,11 @@
   "type": "commonjs",
   "dependencies": {
     "bad-words": "^3.0.4",
+    "canvas": "^3.2.3",
     "discord.js": "^14.26.5",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.7.4"
+    "mongoose": "^9.7.4",
+    "node-cron": "^4.6.0"
   }
 }
