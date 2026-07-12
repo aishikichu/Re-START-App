@@ -27,7 +27,18 @@ const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const Starboard = require('./models/Starboard'); // Import Starboard schema
 const profanityFilter = new Filter();
-const gachaPool = require('./gachaPool.json'); // Import the list of Booth avatars
+let gachaPool = [];
+const poolPath = path.join(__dirname, 'gachaPool.json');
+if (fs.existsSync(poolPath)) {
+    try {
+        gachaPool = JSON.parse(fs.readFileSync(poolPath, 'utf8'));
+    } catch (e) {
+        console.error("Failed to parse gachaPool.json, starting with empty pool.");
+        gachaPool = [];
+    }
+} else {
+    fs.writeFileSync(poolPath, JSON.stringify([], null, 2));
+}
 
 const WIDGET_CHANNEL_ID = '1525308184389222400';
 const STARBOARD_CHANNEL_ID = '1525488417864028362';
@@ -919,6 +930,14 @@ client.on('interactionCreate', async (interaction) => {
 
             embed.setImage(`attachment://${imgName}`);
             embed.setFooter({ text: claimMsg });
+            
+            if (claimMsg.includes('added the avatar to their inventory') && embed.data.description) {
+                if (embed.data.description.includes('*Unclaimed*')) {
+                    embed.data.description = embed.data.description.replace('*Unclaimed*', `<@${claimerId}>`);
+                } else {
+                    embed.data.description = embed.data.description.replace('🧍 **Belongs to:** ', `🧍 **Belongs to:** <@${claimerId}>, `);
+                }
+            }
 
             await interaction.update({ content: claimMsg, embeds: [embed], components: [row], files: [attachment] });
             return;
