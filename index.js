@@ -1890,7 +1890,21 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             // Filter pool by rarity
-            const pool = gachaPool.filter(m => m.rarity === selectedRarity);
+            let pool = gachaPool.filter(m => m.rarity === selectedRarity);
+            
+            // Fallback logic if the rarity pool is empty (e.g. no 'C' avatars in the new dynamic pool)
+            if (pool.length === 0 && selectedRarity === 'C') { selectedRarity = 'R'; pool = gachaPool.filter(m => m.rarity === selectedRarity); }
+            if (pool.length === 0 && selectedRarity === 'R') { selectedRarity = 'SR'; pool = gachaPool.filter(m => m.rarity === selectedRarity); }
+            if (pool.length === 0 && selectedRarity === 'SR') { selectedRarity = 'UR'; pool = gachaPool.filter(m => m.rarity === selectedRarity); }
+            if (pool.length === 0 && selectedRarity === 'UR') { selectedRarity = 'USSR'; pool = gachaPool.filter(m => m.rarity === selectedRarity); }
+
+            if (pool.length === 0) {
+                // Refund token if pool is completely empty
+                userRecord.gachaTokens += 1;
+                await userRecord.save();
+                return interaction.editReply(`❌ The Gacha Pool is completely empty! Please ask Game Staff to approve some avatars first.`);
+            }
+
             const model = pool[Math.floor(Math.random() * pool.length)];
 
             // Check if anyone has this model wishlisted
