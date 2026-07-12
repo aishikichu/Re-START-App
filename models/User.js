@@ -13,7 +13,8 @@ const userSchema = new mongoose.Schema({
     profileColor: { type: String, default: '#95a5a6' },
     activeXpBoost: { type: Date, default: null }, // Timestamp of when it expires
     showcase: { type: [String], default: [] }, // Array of avatar IDs for profile
-    badges: { type: [String], default: [] }    // Array of emoji strings
+    badges: { type: [String], default: [] },    // Array of emoji strings
+    affinity: { type: Number, default: 0 }     // Affinity points for dupes
 });
 
 module.exports = mongoose.model('User', userSchema);

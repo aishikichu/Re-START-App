@@ -573,23 +573,41 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith('claim_')) {
         const parts = interaction.customId.split('_');
         const modelId = parts[1];
+        const rollerId = parts[2]; // We added this to the ID
         const claimerId = interaction.user.id;
 
         try {
-            // Check if button is already claimed (we can disable it visually, but just in case of race conditions)
+            // Check if button is already claimed
             if (interaction.message.components[0].components[0].disabled) {
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this.', flags: 64 });
             }
 
-            let userRecord = await User.findOne({ userId: claimerId });
-            if (!userRecord) userRecord = new User({ userId: claimerId });
+            let claimerRecord = await User.findOne({ userId: claimerId });
+            if (!claimerRecord) claimerRecord = new User({ userId: claimerId });
 
-            // Add model to inventory
-            userRecord.inventory.push(modelId);
-            await userRecord.save();
+            const model = gachaPool.find(m => m.id === modelId);
+
+            let claimMsg = '';
+            
+            // Is it a Sniper?
+            if (claimerId !== rollerId) {
+                // Sniper logic: Give coins instead of avatar
+                claimerRecord.coins += model.value;
+                claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and sold it for **🪙 ${model.value} Coins**!`;
+                await claimerRecord.save();
+            } else {
+                // Roller logic: Check for duplicate
+                if (claimerRecord.inventory.includes(modelId)) {
+                    claimerRecord.affinity = (claimerRecord.affinity || 0) + 1;
+                    claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar and got **+1 Affinity Point** instead!`;
+                } else {
+                    claimerRecord.inventory.push(modelId);
+                    claimMsg = `💖 **Claimed!** <@${claimerId}> added the avatar to their inventory!`;
+                }
+                await claimerRecord.save();
+            }
 
             // Disable the button and update message
-            const model = gachaPool.find(m => m.id === modelId);
             const disabledButton = new ButtonBuilder()
                 .setCustomId('claimed_already')
                 .setLabel(`Claimed by ${interaction.user.username}`)
@@ -598,9 +616,13 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(disabledButton);
             const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-            embed.setFooter({ text: `💖 Claimed by ${interaction.user.username}` });
+            
+            // Remove image from embed to avoid visual duplicate, keep thumbnail or nothing
+            // We just let the original attachment stay attached to the message.
+            embed.setImage(null);
+            embed.setFooter({ text: claimMsg });
 
-            await interaction.update({ embeds: [embed], components: [row] });
+            await interaction.update({ content: claimMsg, embeds: [embed], components: [row] });
             return;
         } catch (err) {
             console.error(err);
@@ -1287,17 +1309,18 @@ client.on('interactionCreate', async (interaction) => {
             // Fetch the image from booth natively to bypass Discord proxy block
             const imgRes = await fetch(model.image);
             const imgBuffer = await imgRes.arrayBuffer();
-            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: 'avatar.jpg' });
+            const imgName = `avatar_${model.id}.jpg`;
+            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
 
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
                 .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
                 .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
-                .setImage('attachment://avatar.jpg')
+                .setImage(`attachment://${imgName}`)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
             const claimButton = new ButtonBuilder()
-                .setCustomId(`claim_${model.id}_${Date.now()}`)
+                .setCustomId(`claim_${model.id}_${interaction.user.id}_${Date.now()}`)
                 .setLabel('Claim Avatar')
                 .setEmoji('💖')
                 .setStyle(ButtonStyle.Success);
