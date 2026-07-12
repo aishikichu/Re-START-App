@@ -1410,33 +1410,64 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.deferReply();
 
         try {
-            const model = gachaPool.find(m => m.id === avatarId || m.name.toLowerCase().includes(avatarId));
-            if (!model) {
+            const models = gachaPool.filter(m => m.id === avatarId || m.name.toLowerCase().includes(avatarId));
+            
+            if (models.length === 0) {
                 return interaction.editReply(`❌ Could not find any avatar matching \`${avatarId}\` in the database!`);
-            }
-
-            const owners = await User.find({ inventory: model.id });
-            let ownershipText = '*Unclaimed*';
-            if (owners.length > 0) {
-                // To avoid massive embeds if many people own it, cap at 15
-                const ownerMentions = owners.slice(0, 15).map(o => `<@${o.userId}>`).join(', ');
-                ownershipText = ownerMentions + (owners.length > 15 ? `... and ${owners.length - 15} more` : '');
             }
 
             const colors = { 'UR': 0xff00ff, 'SR': 0xf1c40f, 'R': 0x3498db, 'C': 0x95a5a6 };
 
-            const imgRes = await fetch(model.image);
-            const imgBuffer = await imgRes.arrayBuffer();
-            const imgName = `avatar_${model.id}.jpg`;
-            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+            // If exactly one match OR they provided an exact ID match, show the single detailed view
+            const exactMatch = models.find(m => m.id === avatarId);
+            if (models.length === 1 || exactMatch) {
+                const model = exactMatch || models[0];
+                const owners = await User.find({ inventory: model.id });
+                let ownershipText = '*Unclaimed*';
+                if (owners.length > 0) {
+                    const ownerMentions = owners.slice(0, 15).map(o => `<@${o.userId}>`).join(', ');
+                    ownershipText = ownerMentions + (owners.length > 15 ? `... and ${owners.length - 15} more` : '');
+                }
+
+                const imgRes = await fetch(model.image);
+                const imgBuffer = await imgRes.arrayBuffer();
+                const imgName = `avatar_${model.id}.jpg`;
+                const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+
+                const embed = new EmbedBuilder()
+                    .setColor(colors[model.rarity] || 0x95a5a6)
+                    .setTitle(`🔍 Avatar Lookup: ${model.name}`)
+                    .setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n\n🧍 **Belongs to:**\n${ownershipText}`)
+                    .setImage(`attachment://${imgName}`);
+
+                return interaction.editReply({ embeds: [embed], files: [attachment] });
+            }
+
+            // If multiple matches (e.g. they searched "Maya" and got UR, SR, R, C variants)
+            if (models.length > 10) {
+                return interaction.editReply(`❌ Found **${models.length}** avatars matching \`${avatarId}\`! Please be more specific or use the exact Avatar ID.`);
+            }
 
             const embed = new EmbedBuilder()
-                .setColor(colors[model.rarity] || 0x95a5a6)
-                .setTitle(`🔍 Avatar Lookup: ${model.name}`)
-                .setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n\n🧍 **Belongs to:**\n${ownershipText}`)
-                .setImage(`attachment://${imgName}`);
+                .setColor(0x3498db)
+                .setTitle(`🔍 Multiple Variants Found for "${avatarId}"`)
+                .setDescription('Here are all the matching avatars and who owns them:');
 
-            return interaction.editReply({ embeds: [embed], files: [attachment] });
+            // We'll process them all and add a field for each
+            for (const model of models) {
+                const owners = await User.find({ inventory: model.id });
+                let ownershipText = '*Unclaimed*';
+                if (owners.length > 0) {
+                    const ownerMentions = owners.slice(0, 5).map(o => `<@${o.userId}>`).join(', ');
+                    ownershipText = ownerMentions + (owners.length > 5 ? ` +${owners.length - 5} more` : '');
+                }
+                embed.addFields({
+                    name: `[${model.rarity}] ${model.name} (ID: \`${model.id}\`)`,
+                    value: `**Value:** 🪙 ${model.value}\n**Owners:** ${ownershipText}`
+                });
+            }
+
+            return interaction.editReply({ embeds: [embed] });
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error looking up avatar!');
