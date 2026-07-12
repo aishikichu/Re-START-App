@@ -2,14 +2,13 @@
 
 ![Re:START Banner](banner.png)
 
-<img src="icon.png" width="120" />
+# Re:START App
 
-# Re:START — Custom Stat Widget Bot
-
-**A Discord bot that lets your server members customize their own profile widget stats — in real time.**
+**A full-featured Discord bot featuring an interactive Economy, a massive Booth Avatar Gacha system, and Profile Widget stats syncing!**
 
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.js.org)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![License](https://img.shields.io/badge/license-ISC-blue?style=for-the-badge)](LICENSE)
 
 </div>
@@ -18,69 +17,48 @@
 
 ## 🤔 What is this?
 
-**Re:START** is a lightweight Discord bot that hooks into Discord's **Profile Widget API** to push custom stat labels and values directly onto a user's in-app profile widget — no dashboard needed.
-
-Users just type a single command in any channel, and their widget updates instantly. 6 customizable slots, fully personal, fully persistent.
-
----
-
-## 🎮 Commands
-
-### 🪪 Profile Widget
-
-Each Discord user gets **6 stat slots** on their profile widget. They can set any title and value they want.
-
-| Command | Description |
-|---|---|
-| `/setstat <slot> <title> <value>` | Set a widget stat via slash command |
-| `!setstat <slot> <Title> \| <Value>` | Set a widget stat via prefix command |
-
-**Examples:**
-```
-/setstat 1 Vibe Chill
-!setstat 2 Currently Playing | Valorant
-!setstat 3 Hours Slept | 3 (send help)
-!setstat 4 Mood | 💀
-```
-
-Each command:
-1. 💾 Saves your stat locally to `data.json`
-2. 📡 Immediately pushes the update to Discord's Widget API
-3. ✅ Replies with a confirmation so you know it worked
+**Re:START** is a fully comprehensive Discord bot for your community. It features:
+* **Profile Widget Sync:** Let users customize their own Discord Profile Widget stats natively.
+* **Massive Economy:** Chat XP, Leveling, Coin drops, and a Dynamic Shop where prices fluctuate!
+* **Re:BOOTH Gacha:** Over 2,000+ VRChat Booth Avatars to pull, collect, sell, and trade with multi-tier rarities (UR, SR, R, C).
+* **Fun & Moderation:** Magic 8-ball, Starboard, auto-role panels, verification systems, and more.
 
 ---
 
-### 🎉 Fun Commands
+## 📚 Documentation & Setup
 
-| Command | Description |
-|---|---|
-| `!8ball <question>` | Ask the magic 8-ball a yes/no question |
-| `!coinflip` | Flip a coin — heads or tails |
-| `!roll [sides]` | Roll a dice (default d6, up to d100) |
-| `!vibe` | Get your random vibe check for the day |
-| `!rps <rock/paper/scissors>` | Play Rock Paper Scissors vs the bot |
+**Want to see everything the bot can do?**
+Check out the full **[Re:START Wiki](docs/WIKI.md)** for a complete breakdown of all commands, features, and systems!
 
-**Examples:**
-```
-!8ball Will I win today?
-!coinflip
-!roll 20
-!vibe
-!rps scissors
-```
+**Need help setting up the Profile Widget?**
+Check out our step-by-step **[User Guide Documentation](https://docs.google.com/document/d/1ZFgmAhg50SeUP5QhYaNafr691wUi6MXR229VzbaZmyg/edit?usp=sharing)**.
 
 ---
 
-## 🚀 Getting Started
+## 🌟 Core Features Overview
 
-### 📖 User Guide
-Need help setting up the widget on your profile? Check out the **[Step-by-Step Instructions Document](https://docs.google.com/document/d/1ZFgmAhg50SeUP5QhYaNafr691wUi6MXR229VzbaZmyg/edit?usp=sharing)** with full screenshots!
+### 💸 Dynamic Economy & Leveling
+The server feels alive! Users gain XP and Coins just by chatting. 
+Random **Coin Drops** appear in the chat for the fastest clicker to claim. Use your coins to gamble on the **Slot Machine**, or spend them in the **Dynamic Shop** where prices fluctuate every 3 hours based on a simulated market economy!
+
+### 🎰 The Re:BOOTH Gacha System
+Spend your tokens to roll for 3D Booth Avatars! The pool contains **over 2,000 unique avatars**.
+* Collect popular avatars like Maya, Imeris, Kikyo, and more.
+* Experience the thrill of pulling a **[UR] Ultra Rare**, **[SR] Super Rare**, or **[R] Rare** variant.
+* Set up a **Wishlist** and get notified when someone rolls your dream avatar!
+* **Trade** avatars with other players, or **sell** duplicates back to the shop.
+
+### 🪪 Profile Widget Stats
+Hook directly into Discord's **Profile Widget API**. Users can type `/setstat` to instantly push custom labels and values directly to their in-app profile widget. No messy dashboards needed!
+
+---
+
+## 🚀 Getting Started (For Developers)
 
 ### Prerequisites
-
 - [Node.js](https://nodejs.org) v18 or higher
+- A [MongoDB Atlas](https://www.mongodb.com/atlas/database) Cluster URI
 - A Discord Bot Token from the [Discord Developer Portal](https://discord.com/developers/applications)
-- Your bot must have the **Message Content** intent enabled
 
 ### Installation
 
@@ -92,39 +70,15 @@ cd Re-START-App
 # 2. Install dependencies
 npm install
 
-# 3. Set your bot token as an environment variable
-#    Windows (PowerShell)
-$env:DISCORD_TOKEN = "your-bot-token-here"
-
-#    macOS / Linux
-export DISCORD_TOKEN="your-bot-token-here"
-
-# 4. Start the bot
+# 3. Start the bot
 node index.js
 ```
 
-> 💡 **Tip:** For persistent environment variables, use a `.env` file with the [`dotenv`](https://www.npmjs.com/package/dotenv) package, or set them in your hosting platform's dashboard.
-
----
-
-## 🔧 Configuration
-
-| Variable         | Description                          | Required |
-|------------------|--------------------------------------|----------|
-| `DISCORD_TOKEN`  | Your Discord bot's secret token      | ✅ Yes   |
-
-Stat data is stored locally in `data.json` — no database needed.
-
----
-
-## 📁 Project Structure
-
-```
-Re-START-App/
-├── index.js        # Main bot logic & command handler
-├── data.json       # Persistent stat storage (auto-managed)
-├── package.json    # Project metadata & dependencies
-└── .gitignore      # Ignores node_modules & sensitive files
+### Environment Variables (.env)
+Create a `.env` file in the root directory (or set these in your hosting platform like Render):
+```env
+DISCORD_TOKEN=your_bot_token_here
+MONGO_URI=mongodb+srv://username:password@cluster0.mongodb.net/?retryWrites=true&w=majority
 ```
 
 ---
@@ -133,12 +87,8 @@ Re-START-App/
 
 Make sure these are enabled in the [Discord Developer Portal](https://discord.com/developers/applications):
 
-- **Intents:** `Guilds`, `Guild Messages`, `Message Content`
-- **Permissions:** `Send Messages`, `Read Message History`
-
-> ⚠️ Users must also **authorize your app** via OAuth2 for the widget push to work on their profile.
-
----
+- **Intents:** `Guilds`, `Guild Messages`, `Message Content`, `Guild Members`
+- **Permissions:** `Send Messages`, `Read Message History`, `Manage Roles`, `Embed Links`
 
 ---
 
