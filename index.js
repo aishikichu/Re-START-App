@@ -1117,8 +1117,20 @@ client.on('interactionCreate', async (interaction) => {
         let userRec = await User.findOne({ userId: interaction.user.id });
         if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) return interaction.reply({ content: '❌ Only Game Staff can use this command!', ephemeral: true });
 
-        // Add daily fetch limit logic here if needed (could track in User model)
-        // For now, just trigger the fetch script:
+        // Global Daily Fetch Limit Logic
+        const data = getData();
+        const now = new Date();
+        const todayStr = now.toDateString();
+        
+        if (data.lastFetchDate !== todayStr) {
+            data.lastFetchDate = todayStr;
+            data.dailyFetchCount = 0;
+        }
+
+        if (data.dailyFetchCount + amount > 10) {
+            return interaction.reply({ content: `❌ Global daily fetch limit reached! You can only fetch **${10 - data.dailyFetchCount}** more avatars today.`, ephemeral: true });
+        }
+
         await interaction.deferReply({ ephemeral: true });
         try {
             const cheerio = require('cheerio');
@@ -1143,6 +1155,8 @@ client.on('interactionCreate', async (interaction) => {
                 count++;
                 await new Promise(r => setTimeout(r, 1000));
             }
+            data.dailyFetchCount += count;
+            saveData(data);
             return interaction.editReply(`✅ Fetched and sent ${count} avatars to the review channel!`);
         } catch (err) {
             console.error(err);
