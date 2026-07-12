@@ -584,9 +584,9 @@ client.on('interactionCreate', async (interaction) => {
 
             const variantInput = new TextInputBuilder()
                 .setCustomId('avatar_variants')
-                .setLabel('Number of Variants (1=R, 2=SR+R, 3=UR+SR+R)')
+                .setLabel('Variants (1=C, 2=R+C, 3=SR+, 4=UR+)')
                 .setStyle(TextInputStyle.Short)
-                .setValue('3')
+                .setValue('4')
                 .setRequired(true);
 
             modal.addComponents(
@@ -652,20 +652,26 @@ client.on('interactionCreate', async (interaction) => {
                 gachaPool.push(newAvatar);
                 addedVariants.push('USSR');
             } else {
-                const variants = parseInt(interaction.fields.getTextInputValue('avatar_variants')) || 3;
+                const variants = parseInt(interaction.fields.getTextInputValue('avatar_variants')) || 4;
 
-                if (variants >= 3) {
+                if (variants >= 4) {
                     gachaPool.push({ id: safeName + '_ur', name: finalName, url: baseUrl, image: fileName, rarity: 'UR', value: 1000, creator });
                     gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
                     gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
-                    addedVariants.push('UR', 'SR', 'R');
-                } else if (variants === 2) {
+                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    addedVariants.push('UR', 'SR', 'R', 'C');
+                } else if (variants === 3) {
                     gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
                     gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
-                    addedVariants.push('SR', 'R');
-                } else {
+                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    addedVariants.push('SR', 'R', 'C');
+                } else if (variants === 2) {
                     gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
-                    addedVariants.push('R');
+                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    addedVariants.push('R', 'C');
+                } else {
+                    gachaPool.push({ id: safeName + '_c', name: finalName, url: baseUrl, image: fileName, rarity: 'C', value: 25, creator });
+                    addedVariants.push('C');
                 }
             }
 
