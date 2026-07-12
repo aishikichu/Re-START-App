@@ -560,10 +560,40 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.update({ embeds: [deniedEmbed], components: [] });
         }
 
-        // Approval Logic
-        await interaction.deferUpdate();
+        // Show modal for naming
+        if (isApprove) {
+            let rawTitle = embed.title.replace('New Avatar Submission: ', '').replace(/\[.*\] /, '');
+            let englishPart = rawTitle.replace(/[^\x00-\x7F]/g, " ");
+            const keywords = ['original', '3d', 'model', 'avatar', 'vrchat', 'vrc', 'quest', 'pc', 'physbone', 'unity', 'fbx', 'vrm', 'ready', 'for', 'the', 'new', 'character'];
+            let words = englishPart.split(/[\s\-\/|【】『』()]+/).filter(w => w && !keywords.includes(w.toLowerCase()));
+            let suggestedName = words.length > 0 ? words.join(' ').trim() : rawTitle.substring(0, 25);
+            
+            const modal = new ModalBuilder()
+                .setCustomId(`modal_approve_avatar_${interaction.message.id}`)
+                .setTitle('Approve Avatar');
 
+            const nameInput = new TextInputBuilder()
+                .setCustomId('avatar_name')
+                .setLabel('Avatar Name (Shortened/English)')
+                .setStyle(TextInputStyle.Short)
+                .setValue(suggestedName)
+                .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+            return interaction.showModal(modal);
+        }
+    }
+
+    // ── Modal Submit: Approve Avatar ───────────────────────────────────────────
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_approve_avatar_')) {
+        const finalName = interaction.fields.getTextInputValue('avatar_name');
+        
+        await interaction.deferUpdate();
+        
         try {
+            const msg = interaction.message;
+            const embed = msg.embeds[0];
+            const isEvent = embed.title.includes('Event');
             const fs = require('fs');
             const path = require('path');
             
@@ -572,7 +602,7 @@ client.on('interactionCreate', async (interaction) => {
             const res = await fetch(imageUrl);
             const buffer = Buffer.from(await res.arrayBuffer());
             const safeName = embed.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + Date.now();
-            const fileName = safeName + '.jpg'; // Assume jpg for now
+            const fileName = safeName + '.jpg';
             const filePath = path.join(__dirname, 'images', fileName);
             
             if (!fs.existsSync(path.join(__dirname, 'images'))) fs.mkdirSync(path.join(__dirname, 'images'));
@@ -588,26 +618,13 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             // 3. Add to gachaPool.json (Variant Logic)
-            let rawTitle = embed.title.replace('New Avatar Submission: ', '').replace(/\[.*\] /, '');
-            let baseName = rawTitle;
-            
-            // Extract clean English name
-            let englishPart = rawTitle.replace(/[^\x00-\x7F]/g, " "); // Replace non-ascii with space
-            const keywords = ['original', '3d', 'model', 'avatar', 'vrchat', 'vrc', 'quest', 'pc', 'physbone', 'unity', 'fbx', 'vrm', 'ready', 'for', 'the', 'new', 'character'];
-            let words = englishPart.split(/[\s\-\/|【】『』()]+/).filter(w => w && !keywords.includes(w.toLowerCase()));
-            
-            if (words.length > 0) {
-                baseName = words.join(' ').trim();
-            } else {
-                baseName = rawTitle.substring(0, 25); // Fallback if no English words
-            }
             const baseUrl = embed.url || 'https://booth.pm/';
             let addedVariants = [];
 
             if (isEvent) {
                 const newAvatar = {
                     id: safeName,
-                    name: baseName,
+                    name: finalName,
                     url: baseUrl,
                     image: fileName,
                     rarity: 'USSR',
@@ -629,29 +646,29 @@ client.on('interactionCreate', async (interaction) => {
                     console.error('Failed to fetch hearts for variant logic', e);
                 }
 
-                // If massive hit, add UR, SR, R
                 if (hearts > 5000) {
-                    gachaPool.push({ id: safeName + '_ur', name: baseName, url: baseUrl, image: fileName, rarity: 'UR', value: 1000, creator });
-                    gachaPool.push({ id: safeName + '_sr', name: baseName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
-                    gachaPool.push({ id: safeName + '_r', name: baseName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
+                    gachaPool.push({ id: safeName + '_ur', name: finalName, url: baseUrl, image: fileName, rarity: 'UR', value: 1000, creator });
+                    gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
+                    gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
                     addedVariants.push('UR', 'SR', 'R');
                 } else if (hearts > 1500) {
-                    gachaPool.push({ id: safeName + '_sr', name: baseName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
-                    gachaPool.push({ id: safeName + '_r', name: baseName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
+                    gachaPool.push({ id: safeName + '_sr', name: finalName, url: baseUrl, image: fileName, rarity: 'SR', value: 500, creator });
+                    gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
                     addedVariants.push('SR', 'R');
                 } else {
-                    gachaPool.push({ id: safeName + '_r', name: baseName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
+                    gachaPool.push({ id: safeName + '_r', name: finalName, url: baseUrl, image: fileName, rarity: 'R', value: 100, creator });
                     addedVariants.push('R');
                 }
             }
 
             fs.writeFileSync(path.join(__dirname, 'gachaPool.json'), JSON.stringify(gachaPool, null, 2));
+            
             // 4. Reward submitter
             let submitterId = null;
             if (embed.fields) {
                 const submitterField = embed.fields.find(f => f.name === 'Submitter');
                 if (submitterField) submitterId = submitterField.value.replace(/[^0-9]/g, '');
-            } else if (!embed.footer.text.startsWith('Creator: ')) {
+            } else if (embed.footer && embed.footer.text && !embed.footer.text.startsWith('Creator: ')) {
                 submitterId = embed.footer.text;
             }
 
@@ -659,19 +676,17 @@ client.on('interactionCreate', async (interaction) => {
                 let subRec = await User.findOne({ userId: submitterId });
                 if (subRec) {
                     const now = new Date();
-                    // Check if they got a reward today
                     if (!subRec.lastSubmissionRewardDate || now.getDate() !== subRec.lastSubmissionRewardDate.getDate()) {
                         subRec.coins += 500;
                         subRec.lastSubmissionRewardDate = now;
                         await subRec.save();
-                        // Optional: DM them
                     }
                 }
             }
 
             const approvedEmbed = EmbedBuilder.from(embed)
                 .setColor('#2ecc71')
-                .setTitle(`✅ Approved as [${addedVariants.join(', ')}] ${baseName}`)
+                .setTitle(`✅ Approved as [${addedVariants.join(', ')}] ${finalName}`)
                 .setDescription(`Successfully added to Gacha Pool! Saved image locally.`);
             await interaction.message.edit({ embeds: [approvedEmbed], components: [] });
 
