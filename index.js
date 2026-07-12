@@ -20,13 +20,17 @@ const app = express();
 const Filter = require('bad-words');
 const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
+const Starboard = require('./models/Starboard'); // Import Starboard schema
 const profanityFilter = new Filter();
 const gachaPool = require('./gachaPool.json'); // Import the list of Booth avatars
 
 const WIDGET_CHANNEL_ID = '1525308184389222400';
-const ECONOMY_CHANNEL_ID = '1525505480808730694';
+const STARBOARD_CHANNEL_ID = '1525488417864028362';
 const REBOOTH_CHANNEL_ID = '1525666791974764684';
+const ECONOMY_CHANNEL_ID = '1525505480808730694';
 const SHOP_CHANNEL_ID = '1525685955212869804';
+const TRADING_CHANNEL_ID = '1525718530115375185';
+const INFO_CHANNEL_ID = '1525718674890166454';
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
@@ -652,6 +656,58 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Error claiming avatar!', flags: 64 });
+        }
+    }
+
+    // ── Button: Chat Drop Claim ───────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('drop_')) {
+        const parts = interaction.customId.split('_');
+        const dropType = parts[1];
+
+        try {
+            if (interaction.message.components[0].components[0].disabled) {
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this drop.', flags: 64 });
+            }
+
+            let claimerRecord = await User.findOne({ userId: interaction.user.id });
+            if (!claimerRecord) claimerRecord = new User({ userId: interaction.user.id });
+
+            let claimMsg = '';
+            let embedColor = 0x2ecc71;
+
+            if (dropType === 'coins') {
+                const amount = Math.floor(Math.random() * 151) + 50; // 50 to 200
+                claimerRecord.coins += amount;
+                claimMsg = `🎉 <@${interaction.user.id}> claimed the bag and got **🪙 ${amount} Coins**!`;
+            } else if (dropType === 'star') {
+                claimerRecord.tokens = (claimerRecord.tokens || 0) + 1;
+                claimMsg = `🌟 **LUCKY!** <@${interaction.user.id}> caught the star and received **1 Gacha Token**!`;
+            } else if (dropType === 'trap') {
+                const penalty = Math.floor(Math.random() * 101) + 50; // 50 to 150
+                claimerRecord.coins = Math.max(0, claimerRecord.coins - penalty);
+                claimMsg = `💥 **IT WAS A TRAP!** <@${interaction.user.id}> opened it and lost **🪙 ${penalty} Coins**!`;
+                embedColor = 0xe74c3c;
+            }
+
+            await claimerRecord.save();
+
+            const disabledButton = new ButtonBuilder()
+                .setCustomId('drop_claimed')
+                .setLabel(`Claimed by ${interaction.user.username}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true);
+
+            const row = new ActionRowBuilder().addComponents(disabledButton);
+            const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+            
+            embed.setColor(embedColor);
+            embed.setDescription(claimMsg);
+
+            await interaction.update({ embeds: [embed], components: [row] });
+            return;
+        } catch (err) {
+            console.error(err);
+            return interaction.reply({ content: '❌ Error claiming drop!', flags: 64 });
         }
     }
 
@@ -1530,7 +1586,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /wish ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'wish') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -1565,7 +1621,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /trade ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'trade') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
         
         const targetUser = interaction.options.getUser('user');
         const giveId = interaction.options.getString('give_id').toLowerCase();
@@ -1904,13 +1960,53 @@ client.on('messageCreate', async (message) => {
             // Save their new XP and Level to the database!
             await userRecord.save();
         }
+
+        // ─── Random Chat Drops ─────────────────────────────────────────────────────────
+        if (message.channelId === ECONOMY_CHANNEL_ID) {
+            // 5% chance per message to trigger a drop
+            if (Math.random() < 0.05) {
+                const dropRoll = Math.random();
+                let dropType = 'coins'; // 85% chance
+                if (dropRoll < 0.10) dropType = 'star'; // 10% chance
+                else if (dropRoll < 0.15) dropType = 'trap'; // 5% chance
+
+                let embedTitle, embedDesc, btnEmoji;
+                if (dropType === 'star') {
+                    embedTitle = '🌟 A Mysterious Star fell from the sky!';
+                    embedDesc = 'Click the button below to claim it before someone else does!';
+                    btnEmoji = '🌟';
+                } else if (dropType === 'coins') {
+                    embedTitle = '💰 A Bag of Coins appeared!';
+                    embedDesc = 'Quick, click to grab it!';
+                    btnEmoji = '🪙';
+                } else {
+                    embedTitle = '🎁 A Suspicious Gift appeared...';
+                    embedDesc = 'Do you dare to open it?';
+                    btnEmoji = '🎁';
+                }
+
+                const dropEmbed = new EmbedBuilder()
+                    .setColor(0xf1c40f)
+                    .setTitle(embedTitle)
+                    .setDescription(embedDesc);
+
+                const dropButton = new ButtonBuilder()
+                    .setCustomId(`drop_${dropType}_${Date.now()}`)
+                    .setLabel('Claim')
+                    .setEmoji(btnEmoji)
+                    .setStyle(ButtonStyle.Primary);
+
+                const row = new ActionRowBuilder().addComponents(dropButton);
+
+                message.channel.send({ embeds: [dropEmbed], components: [row] });
+            }
+        }
     } catch (err) {
-        console.error('❌ Error updating user XP:', err);
+        console.error('❌ Error updating user XP or Drops:', err);
     }
 });
 
 // ─── Starboard (Hall of Fame) ─────────────────────────────────────────────────
-const STARBOARD_CHANNEL_ID = '1525488417864028362';
 const STAR_THRESHOLD = 3;
 
 client.on('messageReactionAdd', async (reaction, user) => {
@@ -1939,14 +2035,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
         if (!starboardChannel) return console.error('❌ Starboard channel not found!');
 
         // Check if this message was already posted in the starboard to prevent duplicates
-        // We will do a simple check by fetching the last 100 messages in the starboard channel
-        const recentMessages = await starboardChannel.messages.fetch({ limit: 100 });
-        const alreadyPosted = recentMessages.find(m => 
-            m.embeds.length > 0 && 
-            m.embeds[0].footer && 
-            m.embeds[0].footer.text.includes(message.id)
-        );
-
+        const alreadyPosted = await Starboard.findOne({ messageId: message.id });
         if (alreadyPosted) return; // Already in the Hall of Fame
 
         // Build the beautiful Starboard Embed
@@ -1968,7 +2057,16 @@ client.on('messageReactionAdd', async (reaction, user) => {
             }
         }
 
-        await starboardChannel.send({ embeds: [starEmbed] });
+        const sbMsg = await starboardChannel.send({ embeds: [starEmbed] });
+
+        // Save to Database
+        const newSbRecord = new Starboard({
+            messageId: message.id,
+            starboardMessageId: sbMsg.id,
+            authorId: message.author.id,
+            stars: reaction.count
+        });
+        await newSbRecord.save();
     } catch (err) {
         console.error('❌ Starboard Error:', err);
     }
