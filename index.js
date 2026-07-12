@@ -1220,6 +1220,11 @@ client.on('interactionCreate', async (interaction) => {
                 const image = $(item).find('.item-card__thumbnail-image').attr('src') || $(item).find('.item-card__thumbnail-image').attr('data-original');
                 const creator = $(item).find('.item-card__shop-name').text().trim() || 'Unknown';
                 if (!name || !url || !image) continue;
+
+                // Prevent fetching duplicates that are already in the Gacha Pool
+                const isDuplicate = gachaPool.some(g => g.name === name || g.image === image);
+                if (isDuplicate) continue;
+
                 const embed = new EmbedBuilder().setTitle(name).setURL(url).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
