@@ -12,7 +12,10 @@ const {
     ButtonStyle,
     PermissionFlagsBits,
     Partials,
-    AttachmentBuilder
+    AttachmentBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle
 } = require('discord.js');
 const fs = require('fs');
 const express = require('express');
