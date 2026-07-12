@@ -230,7 +230,9 @@ const slashCommands = [
                 { name: '🎨 Color 2', value: 'color2' },
                 { name: '🎨 Color 3', value: 'color3' },
                 { name: '📛 Badge', value: 'badge' }
-            )),
+            ))
+        .addIntegerOption(opt =>
+            opt.setName('amount').setDescription('Amount to buy (for tokens only)').setRequired(false).setMinValue(1)),
     new SlashCommandBuilder()
         .setName('gacha')
         .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
@@ -316,8 +318,80 @@ client.once('ready', async () => {
             console.log('✅ Slash commands registered globally (no GUILD_ID specified).');
         }
     } catch (err) {
-        console.error('Failed to register slash commands:', err);
+        console.error('❌ Error registering slash commands:', err);
     }
+
+    // Shop auto-broadcaster: checks every minute if prices updated
+    setInterval(() => {
+        try {
+            const data = getData();
+            let shop = data.shop || {};
+            const now = Date.now();
+            let updated = false;
+
+            if (!shop.lastUpdate || (now - shop.lastUpdate) > 10800000) {
+                shop.lastUpdate = now;
+                shop.tokenPrice = Math.floor(Math.random() * (750 - 350 + 1)) + 350;
+                updated = true;
+            }
+
+            if (!shop.lastDailyUpdate || (now - shop.lastDailyUpdate) > 86400000) {
+                shop.lastDailyUpdate = now;
+                const generateColor = () => {
+                    const roll = Math.random();
+                    let rarity, priceRange;
+                    if (roll < 0.05) { rarity = 'Legendary'; priceRange = [20000, 50000]; }
+                    else if (roll < 0.20) { rarity = 'Epic'; priceRange = [10000, 20000]; }
+                    else if (roll < 0.50) { rarity = 'Rare'; priceRange = [5000, 10000]; }
+                    else { rarity = 'Common'; priceRange = [1000, 5000]; }
+                    const hex = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+                    const price = Math.floor(Math.random() * (priceRange[1] - priceRange[0] + 1)) + priceRange[0];
+                    return { hex, rarity, price, sold: false };
+                };
+                shop.colors = [generateColor(), generateColor(), generateColor()];
+
+                const badges = ['🐧', '💖', '✨', '👑', '🔥', '🌸', '💀', '👽', '👻', '💎', '⭐', '🎵', '🍙', '🎀', '🦊'];
+                const rareBadges = ['👑', '💖', '💎', '🦊', '🐧'];
+                const emoji = badges[Math.floor(Math.random() * badges.length)];
+                const badgeRarity = rareBadges.includes(emoji) ? 'Rare' : 'Common';
+                const badgePrice = badgeRarity === 'Rare' ? (Math.floor(Math.random() * 50000) + 50000) : (Math.floor(Math.random() * 10000) + 5000);
+                shop.badge = { emoji, rarity: badgeRarity, price: badgePrice, sold: false };
+                updated = true;
+            }
+
+            if (updated) {
+                data.shop = shop;
+                saveData(data);
+                
+                // Broadcast to SHOP_CHANNEL_ID
+                const channel = client.channels.cache.get(SHOP_CHANNEL_ID);
+                if (channel) {
+                    const nextUpdate = Math.ceil((10800000 - (Date.now() - shop.lastUpdate)) / 1000 / 60);
+                    const nextDailyUpdate = Math.ceil((86400000 - (Date.now() - shop.lastDailyUpdate)) / 1000 / 60 / 60);
+
+                    const embed = new EmbedBuilder()
+                        .setColor(0x9b59b6)
+                        .setTitle('🛒 Re:START Dynamic Shop')
+                        .setDescription(`Welcome to the shop! Prices fluctuate based on the market.\nUse \`/buy <item> [amount]\` to purchase.`)
+                        .addFields(
+                            { name: '🎟️ Gacha Token', value: `**Cost:** 🪙 ${shop.tokenPrice} Coins\n*Price updates in ${nextUpdate} mins*` },
+                            { name: '⚡ XP Booster (1 Hour)', value: `**Cost:** 🪙 15000 Coins\nGain 2x Chat XP for 1 hour! ID: \`xpboost\`` },
+                            { name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' }
+                        );
+
+                    shop.colors.forEach((c, index) => {
+                        embed.addFields({ name: `🎨 [${c.rarity}] Color Profile`, value: `**Cost:** 🪙 ${c.price}\nHex: \`${c.hex}\`\nID: \`color${index + 1}\``, inline: true });
+                    });
+
+                    embed.addFields({ name: `📛 [${shop.badge.rarity}] Badge Profile`, value: `**Cost:** 🪙 ${shop.badge.price}\nBadge: ${shop.badge.emoji}\nID: \`badge\`` });
+
+                    channel.send({ content: '🔔 **The Shop has just refreshed!**', embeds: [embed] }).catch(console.error);
+                }
+            }
+        } catch (e) {
+            console.error('Error in shop auto-broadcaster:', e);
+        }
+    }, 60000);
 });
 
 // ─── Message Handler (Random Coin Drops) ──────────────────────────────────────
@@ -933,11 +1007,13 @@ client.on('interactionCreate', async (interaction) => {
             const data = getData(); // Need to save shop if item is bought out
 
             if (itemStr === 'token') {
-                if (userRecord.coins < shop.tokenPrice) return interaction.editReply(`❌ You need **🪙 ${shop.tokenPrice}**. You have **🪙 ${userRecord.coins}**.`);
-                userRecord.coins -= shop.tokenPrice;
-                userRecord.gachaTokens += 1;
+                const amount = interaction.options.getInteger('amount') || 1;
+                const totalCost = shop.tokenPrice * amount;
+                if (userRecord.coins < totalCost) return interaction.editReply(`❌ You need **🪙 ${totalCost}** for ${amount}x Tokens. You have **🪙 ${userRecord.coins}**.`);
+                userRecord.coins -= totalCost;
+                userRecord.gachaTokens += amount;
                 await userRecord.save();
-                return interaction.editReply(`✅ You bought **1x 🎟️ Gacha Token** for 🪙 ${shop.tokenPrice} Coins! You now have **${userRecord.gachaTokens} Tokens**.`);
+                return interaction.editReply(`✅ You bought **${amount}x 🎟️ Gacha Token(s)** for 🪙 ${totalCost} Coins! You now have **${userRecord.gachaTokens} Tokens**.`);
             }
 
             if (itemStr === 'xpboost') {
