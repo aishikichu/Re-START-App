@@ -185,7 +185,17 @@ const slashCommands = [
                     { name: '✂️ Scissors', value: 'scissors' }
                 )),
 
-    // ── Rank & Economy ────────────────────────────────────────────────────────
+    // ── Rank, Economy, & Profile ──────────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('profile')
+        .setDescription('View your or another user\\'s Re:START profile!')
+        .addUserOption(opt => 
+            opt.setName('user').setDescription('The user whose profile you want to view').setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('setshowcase')
+        .setDescription('Set which avatars display on your profile showcase')
+        .addStringOption(opt => 
+            opt.setName('avatars').setDescription('Comma-separated list of Avatar IDs (e.g. maya_ur, kikyo_sr)').setRequired(true)),
     new SlashCommandBuilder()
         .setName('rank')
         .setDescription('Check your current Level and XP in the server!'),
@@ -213,7 +223,14 @@ const slashCommands = [
         .setName('buy')
         .setDescription('Buy an item from the shop')
         .addStringOption(opt => 
-            opt.setName('item').setDescription('Item to buy').setRequired(true).addChoices({ name: '🎟️ Gacha Token', value: 'token' })),
+            opt.setName('item').setDescription('Item to buy').setRequired(true).addChoices(
+                { name: '🎟️ Gacha Token', value: 'token' },
+                { name: '⚡ XP Booster', value: 'xpboost' },
+                { name: '🎨 Color 1', value: 'color1' },
+                { name: '🎨 Color 2', value: 'color2' },
+                { name: '🎨 Color 3', value: 'color3' },
+                { name: '📛 Badge', value: 'badge' }
+            )),
     new SlashCommandBuilder()
         .setName('gacha')
         .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
@@ -638,8 +655,10 @@ client.on('interactionCreate', async (interaction) => {
 
             const xpNeeded = userRecord.level * 500;
             
+            const embedColor = parseInt((userRecord.profileColor || '#3498db').replace('#', ''), 16);
+
             const rankEmbed = new EmbedBuilder()
-                .setColor(0x3498db)
+                .setColor(embedColor)
                 .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
                 .setTitle(`Level ${userRecord.level}`)
                 .setDescription(`**XP:** ${userRecord.xp} / ${xpNeeded}\n**Coins:** 🪙 ${userRecord.coins}`)
@@ -821,13 +840,51 @@ client.on('interactionCreate', async (interaction) => {
         let data = getData();
         let shop = data.shop || {};
         const now = Date.now();
-        // Change prices every 3 hours (10800000 ms)
+        
+        let updated = false;
+
+        // Change token prices every 3 hours (10800000 ms)
         if (!shop.lastUpdate || (now - shop.lastUpdate) > 10800000) {
             shop.lastUpdate = now;
             shop.tokenPrice = Math.floor(Math.random() * (750 - 350 + 1)) + 350;
+            updated = true;
+        }
+
+        // Change daily cosmetics every 24 hours (86400000 ms)
+        if (!shop.lastDailyUpdate || (now - shop.lastDailyUpdate) > 86400000) {
+            shop.lastDailyUpdate = now;
+            
+            // Generate 3 random colors
+            const generateColor = () => {
+                const roll = Math.random();
+                let rarity, priceRange;
+                if (roll < 0.05) { rarity = 'Legendary'; priceRange = [20000, 50000]; }
+                else if (roll < 0.20) { rarity = 'Epic'; priceRange = [10000, 20000]; }
+                else if (roll < 0.50) { rarity = 'Rare'; priceRange = [5000, 10000]; }
+                else { rarity = 'Common'; priceRange = [1000, 5000]; }
+                
+                const hex = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+                const price = Math.floor(Math.random() * (priceRange[1] - priceRange[0] + 1)) + priceRange[0];
+                return { hex, rarity, price, sold: false };
+            };
+            shop.colors = [generateColor(), generateColor(), generateColor()];
+
+            // Generate 1 random badge
+            const badges = ['🐧', '💖', '✨', '👑', '🔥', '🌸', '💀', '👽', '👻', '💎', '⭐', '🎵', '🍙', '🎀', '🦊'];
+            const rareBadges = ['👑', '💖', '💎', '🦊', '🐧'];
+            const emoji = badges[Math.floor(Math.random() * badges.length)];
+            const badgeRarity = rareBadges.includes(emoji) ? 'Rare' : 'Common';
+            const badgePrice = badgeRarity === 'Rare' ? (Math.floor(Math.random() * 50000) + 50000) : (Math.floor(Math.random() * 10000) + 5000);
+            
+            shop.badge = { emoji, rarity: badgeRarity, price: badgePrice, sold: false };
+            updated = true;
+        }
+
+        if (updated) {
             data.shop = shop;
             saveData(data);
         }
+
         return shop;
     }
 
@@ -837,14 +894,27 @@ client.on('interactionCreate', async (interaction) => {
         
         const shop = getShopPrices();
         const nextUpdate = Math.ceil((10800000 - (Date.now() - shop.lastUpdate)) / 1000 / 60);
+        const nextDailyUpdate = Math.ceil((86400000 - (Date.now() - shop.lastDailyUpdate)) / 1000 / 60 / 60);
 
         const embed = new EmbedBuilder()
             .setColor(0x9b59b6)
-            .setTitle('🛒 Re:START Shop (Dynamic Pricing)')
-            .setDescription(`Welcome to the shop! Prices fluctuate based on the market.\nNext price shift in **${nextUpdate} minutes**.\nUse \`/buy <item>\` to purchase.`)
+            .setTitle('🛒 Re:START Dynamic Shop')
+            .setDescription(`Welcome to the shop! Prices fluctuate based on the market.\nUse \`/buy <item>\` to purchase.`)
             .addFields(
-                { name: '🎟️ Gacha Token', value: `**Cost:** 🪙 ${shop.tokenPrice} Coins\nUse this token with \`/gacha\` to roll for Booth avatars!` }
+                { name: '🎟️ Gacha Token', value: `**Cost:** 🪙 ${shop.tokenPrice} Coins\n*Price updates in ${nextUpdate} mins*` },
+                { name: '⚡ XP Booster (1 Hour)', value: `**Cost:** 🪙 15000 Coins\nGain 2x Chat XP for 1 hour! ID: \`xpboost\`` },
+                { name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' }
             );
+
+        shop.colors.forEach((c, index) => {
+            const soldText = c.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${c.price}`;
+            embed.addFields({ name: `🎨 [${c.rarity}] Color Profile`, value: `${soldText}\nHex: \`${c.hex}\`\nID: \`color${index + 1}\``, inline: true });
+        });
+
+        const b = shop.badge;
+        const bSoldText = b.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${b.price}`;
+        embed.addFields({ name: `📛 [${b.rarity}] Badge Profile`, value: `${bSoldText}\nBadge: ${b.emoji}\nID: \`badge\`` });
+
         return interaction.reply({ embeds: [embed] });
     }
 
@@ -852,7 +922,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'buy') {
         if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
         
-        const item = interaction.options.getString('item');
+        const itemStr = interaction.options.getString('item'); // e.g. token, xpboost, color1, color2, color3, badge
         await interaction.deferReply();
 
         try {
@@ -860,19 +930,154 @@ client.on('interactionCreate', async (interaction) => {
             if (!userRecord) userRecord = new User({ userId: interaction.user.id });
 
             const shop = getShopPrices();
+            const data = getData(); // Need to save shop if item is bought out
 
-            if (item === 'token') {
-                if (userRecord.coins < shop.tokenPrice) {
-                    return interaction.editReply(`❌ You don't have enough coins! A Gacha Token costs **🪙 ${shop.tokenPrice}**. You have **🪙 ${userRecord.coins}**.`);
-                }
+            if (itemStr === 'token') {
+                if (userRecord.coins < shop.tokenPrice) return interaction.editReply(`❌ You need **🪙 ${shop.tokenPrice}**. You have **🪙 ${userRecord.coins}**.`);
                 userRecord.coins -= shop.tokenPrice;
                 userRecord.gachaTokens += 1;
                 await userRecord.save();
-                return interaction.editReply(`✅ You successfully bought **1x 🎟️ Gacha Token** for 🪙 ${shop.tokenPrice} Coins!\nYou now have **${userRecord.gachaTokens} Tokens**. Use \`/gacha\` to roll!`);
+                return interaction.editReply(`✅ You bought **1x 🎟️ Gacha Token** for 🪙 ${shop.tokenPrice} Coins! You now have **${userRecord.gachaTokens} Tokens**.`);
             }
+
+            if (itemStr === 'xpboost') {
+                if (userRecord.coins < 15000) return interaction.editReply(`❌ You need **🪙 15000** for an XP Booster. You have **🪙 ${userRecord.coins}**.`);
+                if (userRecord.activeXpBoost && new Date(userRecord.activeXpBoost) > new Date()) {
+                    return interaction.editReply(`❌ You already have an active XP Booster! You cannot stack them.`);
+                }
+                userRecord.coins -= 15000;
+                userRecord.activeXpBoost = new Date(Date.now() + 3600000); // 1 hour from now
+                await userRecord.save();
+                return interaction.editReply(`✅ You bought an **⚡ XP Booster**! You will now gain 2x Chat XP for the next hour!`);
+            }
+
+            if (itemStr.startsWith('color')) {
+                const colorIndex = parseInt(itemStr.replace('color', '')) - 1;
+                const c = shop.colors[colorIndex];
+                if (!c) return interaction.editReply('❌ Invalid color ID!');
+                if (c.sold) return interaction.editReply('❌ That color is already SOLD OUT!');
+                if (userRecord.coins < c.price) return interaction.editReply(`❌ You need **🪙 ${c.price}**. You have **🪙 ${userRecord.coins}**.`);
+                
+                userRecord.coins -= c.price;
+                userRecord.profileColor = c.hex;
+                c.sold = true;
+                
+                await userRecord.save();
+                data.shop = shop;
+                saveData(data);
+                
+                return interaction.editReply(`✅ You bought the **🎨 ${c.rarity} Color Profile (${c.hex})** for 🪙 ${c.price}! Your embeds will now be this color!`);
+            }
+
+            if (itemStr === 'badge') {
+                const b = shop.badge;
+                if (b.sold) return interaction.editReply('❌ That badge is already SOLD OUT!');
+                if (userRecord.coins < b.price) return interaction.editReply(`❌ You need **🪙 ${b.price}**. You have **🪙 ${userRecord.coins}**.`);
+                if (userRecord.badges.includes(b.emoji)) return interaction.editReply(`❌ You already own the ${b.emoji} badge!`);
+                
+                userRecord.coins -= b.price;
+                userRecord.badges.push(b.emoji);
+                b.sold = true;
+                
+                await userRecord.save();
+                data.shop = shop;
+                saveData(data);
+                
+                return interaction.editReply(`✅ You bought the **📛 ${b.rarity} Badge (${b.emoji})** for 🪙 ${b.price}! It will now display on your profile!`);
+            }
+
+            return interaction.editReply('❌ Unknown item! Please specify: token, xpboost, color1, color2, color3, or badge.');
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred while buying the item!');
+        }
+    }
+
+    // ── /profile ──────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'profile') {
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: targetUser.id });
+            if (!userRecord) {
+                return interaction.editReply(`❌ <@${targetUser.id}> does not have a Re:START profile yet!`);
+            }
+
+            const badgesStr = userRecord.badges.length > 0 ? userRecord.badges.join(' ') : 'No badges equipped';
+            
+            let showcaseStr = 'Nothing here yet! Use `/setshowcase` to display avatars.';
+            if (userRecord.showcase && userRecord.showcase.length > 0) {
+                showcaseStr = '';
+                userRecord.showcase.forEach(id => {
+                    const model = gachaPool.find(m => m.id === id);
+                    if (model) {
+                        showcaseStr += `**[${model.rarity}]** ${model.name}\n`;
+                    }
+                });
+            }
+
+            // Calculate Net Worth
+            let netWorth = userRecord.coins;
+            userRecord.inventory.forEach(id => {
+                const model = gachaPool.find(m => m.id === id);
+                if (model) netWorth += model.value;
+            });
+
+            const embedColor = parseInt((userRecord.profileColor || '#95a5a6').replace('#', ''), 16);
+
+            const embed = new EmbedBuilder()
+                .setColor(embedColor)
+                .setTitle(`🪪 ${targetUser.username}'s Re:START Profile`)
+                .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 256 }))
+                .addFields(
+                    { name: '✨ Level & XP', value: `Level **${userRecord.level}** (${userRecord.xp} XP)`, inline: true },
+                    { name: '💰 Net Worth', value: `🪙 ${netWorth}`, inline: true },
+                    { name: '📛 Badges', value: badgesStr },
+                    { name: '🖼️ Avatar Showcase', value: showcaseStr }
+                );
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error loading profile!');
+        }
+    }
+
+    // ── /setshowcase ──────────────────────────────────────────────────────────
+    if (interaction.commandName === 'setshowcase') {
+        const avatarsInput = interaction.options.getString('avatars');
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) userRecord = new User({ userId: interaction.user.id });
+
+            const requestedIds = avatarsInput.split(',').map(id => id.trim().toLowerCase());
+            
+            if (requestedIds.length > 10) {
+                return interaction.editReply('❌ You can only showcase a maximum of 10 avatars at a time!');
+            }
+
+            // Verify they own all the requested avatars
+            const invalidOrUnowned = [];
+            for (const id of requestedIds) {
+                if (!userRecord.inventory.includes(id)) {
+                    invalidOrUnowned.push(id);
+                }
+            }
+
+            if (invalidOrUnowned.length > 0) {
+                return interaction.editReply(`❌ You cannot showcase avatars you don't own (or invalid IDs): \`${invalidOrUnowned.join(', ')}\``);
+            }
+
+            userRecord.showcase = requestedIds;
+            await userRecord.save();
+
+            return interaction.editReply(`✅ Successfully updated your Avatar Showcase with ${requestedIds.length} avatars! View it using \`/profile\`.`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error updating showcase!');
         }
     }
 
@@ -978,8 +1183,10 @@ client.on('interactionCreate', async (interaction) => {
                 desc += `**[${item.rarity}]** ${item.name} (ID: \`${item.id}\`) — 🪙 ${item.value} ${item.count > 1 ? ` **x${item.count}**` : ''}\n`;
             });
 
+            const embedColor = parseInt((userRecord.profileColor || '#3498db').replace('#', ''), 16);
+
             const embed = new EmbedBuilder()
-                .setColor(0x3498db)
+                .setColor(embedColor)
                 .setTitle(`🎒 ${interaction.user.username}'s Re:BOOTH Inventory`)
                 .setDescription(desc || 'Nothing here yet!')
                 .addFields(
@@ -1380,7 +1587,14 @@ client.on('messageCreate', async (message) => {
         // Cooldown: Only give XP if they haven't sent a message in the last 60 seconds
         if (!userRecord.lastMessageDate || (now - userRecord.lastMessageDate) >= 60000) {
             // Give them a random amount of XP between 15 and 25
-            const xpToAdd = Math.floor(Math.random() * 11) + 15;
+            let xpToAdd = Math.floor(Math.random() * 11) + 15;
+            
+            if (userRecord.activeXpBoost && new Date(userRecord.activeXpBoost) > now) {
+                xpToAdd *= 2; // Apply 2x XP Booster!
+            } else if (userRecord.activeXpBoost && new Date(userRecord.activeXpBoost) <= now) {
+                userRecord.activeXpBoost = null; // Expired
+            }
+
             userRecord.xp += xpToAdd;
             userRecord.lastMessageDate = now;
 

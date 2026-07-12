@@ -1,5 +1,6 @@
 const fs = require('fs');
 
+// We use hardcoded images for ones that we know booth proxy blocks or where og:image fetch fails
 const hardcodedImages = {
     'Shinra': 'https://booth.pximg.net/c/300x300/4e179e85-cb47-49f3-8f0d-40d6c97ab3bd/i/4707634/00a74d28-3e9a-41df-a550-93a02bbdb6bc_base_resized.jpg',
     'Lasyusha': 'https://booth.pximg.net/c/300x300/0cd5b6cc-521b-426b-a2cc-4993883a93fa/i/4825073/f3d619ed-b413-4318-971a-63d1db970d4c_base_resized.jpg',
@@ -21,7 +22,7 @@ const popularBases = [
     { name: 'Moe', url: 'https://kyubihome.booth.pm/items/4667400' },
     { name: 'Rindo', url: 'https://jingo1016.booth.pm/items/3443188' },
     { name: 'Karin', url: 'https://komado.booth.pm/items/3470989' },
-    { name: 'Lime', url: 'https://komado.booth.pm/items/3303685' }, // Using fallback if 404
+    { name: 'Lime', url: 'https://komado.booth.pm/items/3303685' },
     { name: 'Sio', url: 'https://chocolatier.booth.pm/items/5650156' },
     { name: 'Mishe', url: 'https://ponderogen.booth.pm/items/1256087' },
     { name: 'Imera', url: 'https://booth.pm/ja/items/3043641' },
@@ -39,12 +40,73 @@ const popularBases = [
     { name: 'Mamehinata', url: 'https://mukumi.booth.pm/items/4340548' }
 ];
 
-// Random Japanese name generator parts
-const firstNames = ['Sakura', 'Kuro', 'Shiro', 'Yuki', 'Aoi', 'Aka', 'Midori', 'Kiiro', 'Sora', 'Riku', 'Umi', 'Hoshi', 'Tsuki', 'Taiyo', 'Hana', 'Mizu', 'Kaze', 'Hikari', 'Yami', 'Tora', 'Ryu', 'Neko', 'Inu', 'Kuma', 'Usagi', 'Kitsune', 'Tanuki', 'Ookami', 'Tori', 'Kana', 'Mio', 'Rei', 'Asuka', 'Shinji', 'Misato', 'Ritsuko', 'Gendo', 'Fuyutsuki', 'Touji', 'Kensuke', 'Hikari', 'PenPen', 'Yui', 'Naoko', 'Kaworu', 'Mari', 'Ryoji'];
-const lastNames = ['Model', 'V1', 'V2', 'V3', 'Avatar', 'Base', 'Kit', 'Project', 'Original', 'Concept', 'Design', 'Style', 'Type-A', 'Type-B', 'Custom', 'Standard', 'Premium', 'Lite', 'Pro', 'Max', 'Ultra', 'Plus', 'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+const commonBases = [
+    { name: 'Minase', url: 'https://mio3works.booth.pm/items/4013951' },
+    { name: 'Mizu', url: 'https://paryi.booth.pm/items/5162464' },
+    { name: 'Mafuyu', url: 'https://booth.pm/ja/items/5008522' },
+    { name: 'Uzuki', url: 'https://macok3d.booth.pm/items/4996960' },
+    { name: 'Shino', url: 'https://shinoverso.booth.pm/items/4652256' },
+    { name: 'Runa', url: 'https://hyuuganatu.booth.pm/items/3483981' },
+    { name: 'Lilie', url: 'https://kyubihome.booth.pm/items/4159530' },
+    { name: 'Komano', url: 'https://booth.pm/ja/items/3702179' },
+    { name: 'Emmie', url: 'https://booth.pm/ja/items/3503525' },
+    { name: 'Rucco', url: 'https://booth.pm/ja/items/3257858' },
+    { name: 'Hakka', url: 'https://booth.pm/ja/items/3257321' },
+    { name: 'Kokoa', url: 'https://kyubihome.booth.pm/items/2764958' },
+    { name: 'Aria', url: 'https://booth.pm/ja/items/2821217' },
+    { name: 'Yuki', url: 'https://booth.pm/ja/items/2418525' },
+    { name: 'Yuka', url: 'https://booth.pm/ja/items/1336133' },
+    { name: 'Sakuya', url: 'https://booth.pm/ja/items/1360098' },
+    { name: 'Maron', url: 'https://booth.pm/ja/items/1221782' },
+    { name: 'Kanna', url: 'https://booth.pm/ja/items/1210452' },
+    { name: 'Sakura', url: 'https://booth.pm/ja/items/1210451' },
+    { name: 'Rei', url: 'https://booth.pm/ja/items/1210450' },
+    { name: 'Aoi', url: 'https://booth.pm/ja/items/1210449' },
+    { name: 'Akane', url: 'https://booth.pm/ja/items/1210448' },
+    { name: 'Miku', url: 'https://booth.pm/ja/items/1210447' },
+    { name: 'Rin', url: 'https://booth.pm/ja/items/1210446' },
+    { name: 'Len', url: 'https://booth.pm/ja/items/1210445' },
+    { name: 'Luka', url: 'https://booth.pm/ja/items/1210444' },
+    { name: 'Meiko', url: 'https://booth.pm/ja/items/1210443' },
+    { name: 'Kaito', url: 'https://booth.pm/ja/items/1210442' },
+    { name: 'Teto', url: 'https://booth.pm/ja/items/1210441' },
+    { name: 'Neru', url: 'https://booth.pm/ja/items/1210440' },
+    { name: 'Haku', url: 'https://booth.pm/ja/items/1210439' },
+    { name: 'Defoko', url: 'https://booth.pm/ja/items/1210438' },
+    { name: 'Momo', url: 'https://booth.pm/ja/items/1210437' },
+    { name: 'Amane', url: 'https://booth.pm/ja/items/5472855' },
+    { name: 'Meryl', url: 'https://koyori-labo.booth.pm/items/5024222' },
+    { name: 'Tien', url: 'https://jingo1016.booth.pm/items/2253503' },
+    { name: 'Ryoko', url: 'https://booth.pm/ja/items/3371900' },
+    { name: 'VRC Girl A', url: 'https://booth.pm/ja/items/4342211' }
+];
 
-function generateName() {
-    return firstNames[Math.floor(Math.random() * firstNames.length)] + ' ' + lastNames[Math.floor(Math.random() * lastNames.length)];
+async function fetchImage(base) {
+    let imageUrl = 'https://placehold.co/400x400/png?text=' + encodeURIComponent(base.name);
+    try {
+        console.log(`Fetching ${base.name}...`);
+        const res = await fetch(base.url);
+        const html = await res.text();
+        
+        const match = html.match(/<meta property="og:image" content="([^"]+)"/);
+        if (match && match[1]) {
+            imageUrl = match[1];
+            console.log(`Found image for ${base.name}`);
+        } else if (hardcodedImages[base.name]) {
+            imageUrl = hardcodedImages[base.name];
+            console.log(`Used hardcoded image for ${base.name}`);
+        } else {
+            console.log(`Could not find og:image for ${base.name}, using placeholder.`);
+        }
+    } catch (e) {
+        if (hardcodedImages[base.name]) {
+            imageUrl = hardcodedImages[base.name];
+            console.log(`Used hardcoded image for ${base.name} (fallback from error)`);
+        } else {
+            console.error(`Error fetching ${base.name}`);
+        }
+    }
+    return imageUrl;
 }
 
 async function rebuildPool() {
@@ -52,30 +114,7 @@ async function rebuildPool() {
 
     // 1. Process Popular Avatars (Variants: UR, SR, R)
     for (const base of popularBases) {
-        let imageUrl = 'https://placehold.co/400x400/png?text=' + encodeURIComponent(base.name);
-        try {
-            console.log(`Fetching ${base.name}...`);
-            const res = await fetch(base.url);
-            const html = await res.text();
-            
-            const match = html.match(/<meta property="og:image" content="([^"]+)"/);
-            if (match && match[1]) {
-                imageUrl = match[1];
-                console.log(`Found image for ${base.name}`);
-            } else if (hardcodedImages[base.name]) {
-                imageUrl = hardcodedImages[base.name];
-                console.log(`Used hardcoded image for ${base.name}`);
-            } else {
-                console.log(`Could not find og:image for ${base.name}, using placeholder.`);
-            }
-        } catch (e) {
-            if (hardcodedImages[base.name]) {
-                imageUrl = hardcodedImages[base.name];
-                console.log(`Used hardcoded image for ${base.name} (fallback from error)`);
-            } else {
-                console.error(`Error fetching ${base.name}`);
-            }
-        }
+        let imageUrl = await fetchImage(base);
         
         // Add UR Variant
         pool.push({
@@ -105,26 +144,18 @@ async function rebuildPool() {
         });
     }
 
-    // 2. Generate 2000 Common (C) Avatars
-    console.log("Generating 2000 Common avatars...");
-    for (let i = 1; i <= 2000; i++) {
-        let name = generateName();
-        // Give it a slightly unique name if it conflicts
-        name = name + (Math.random() > 0.5 ? ' ' + Math.floor(Math.random() * 100) : '');
-
-        let imageUrl = 'https://placehold.co/400x400/png?text=' + encodeURIComponent(name);
-
+    // 2. Process Common Avatars (Variants: C)
+    for (const base of commonBases) {
+        let imageUrl = await fetchImage(base);
+        
         pool.push({
-            id: 'generic_' + i,
-            name: name,
+            id: base.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_c',
+            name: base.name,
             rarity: 'C',
             value: 100,
             image: imageUrl
         });
     }
-
-    // Sort pool by value descending
-    pool.sort((a, b) => b.value - a.value);
 
     fs.writeFileSync('gachaPool.json', JSON.stringify(pool, null, 4));
     console.log(`Updated gachaPool.json successfully. Total avatars: ${pool.length}`);
