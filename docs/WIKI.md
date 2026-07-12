@@ -72,6 +72,7 @@ These features run automatically in the background:
 * **Chat XP Leveling:** You gain between 15-25 XP every time you chat! There is a 60-second cooldown between messages. Earning enough XP automatically increases your Level!
 * **Random Economy Drops:** When members chat, there is a chance for a random "Coin Drop" or rare "Star Drop" (Gacha Token) to fall from the sky. The first person to click to claim it gets the prize!
 * **Starboard (Hall of Fame):** If any message in the server receives **3 or more ⭐ reactions**, the bot will automatically immortalize it in the dedicated Starboard channel.
+* **Profanity Filter Tracker:** The bot quietly listens to chat and tallies every swear word. Swear too much and the Developer might expose you on the Hall of Shame!
 
 ---
 
@@ -87,5 +88,6 @@ These commands are reserved for server administrators or the Bot Developer.
 
 ### Developer Only Commands
 *(Only accessible by the Developer ID)*
+* **`/hallofshame`** — Fetches the top 3 swearers in the server (tracked by the profanity filter) and posts the leaderboard to the Hall of Re:START channel.
 * **`/addcoins <user> <amount>`** — Instantly adds coins to a user's balance.
 * **`/purge`** — Completely wipes the MongoDB database (Resetting all XP, Coins, and Inventories for everyone). Use with extreme caution!

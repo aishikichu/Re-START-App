@@ -20,8 +20,8 @@
 **Re:START** is a fully comprehensive Discord bot for your community. It features:
 * **Profile Widget Sync:** Let users customize their own Discord Profile Widget stats natively.
 * **Massive Economy:** Chat XP, Leveling, Coin drops, and a Dynamic Shop where prices fluctuate!
-* **Re:BOOTH Gacha:** A dynamically curated pool of VRChat Booth Avatars to pull, collect, sell, and trade. Staff can fetch the latest popular Booth avatars directly into Discord and approve them into the pool with custom rarities (UR, SR, R).
-* **Fun & Moderation:** Magic 8-ball, Starboard, auto-role panels, verification systems, and more.
+* **Re:BOOTH Gacha:** A dynamically curated pool of VRChat Booth Avatars to pull, collect, sell, and trade. Staff can fetch the latest popular Booth avatars directly into Discord and approve them into the pool with custom rarities (UR, SR, R). The pool is securely stored in MongoDB to prevent ephemeral disk wipes.
+* **Fun & Moderation:** Magic 8-ball, Starboard, auto-role panels, verification systems, and an automated **Profanity Filter** equipped with a Developer-only **Hall of Shame** leaderboard!
 
 > 💡 **A Quick Note:** *I originally built this bot specifically for my personal friend group's Discord server, rather than as a massive public community bot. However, it's completely open-source! Feel free to use, modify, and host this code for your own community.*
 
