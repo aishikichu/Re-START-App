@@ -1873,9 +1873,16 @@ client.on('interactionCreate', async (interaction) => {
                 ownershipText = `\n\n🧍 **Belongs to:** *Unclaimed*`;
             }
 
-            // Fetch the image from booth natively to bypass Discord proxy block
-            const imgRes = await fetch(model.image);
-            const imgBuffer = await imgRes.arrayBuffer();
+            // Fetch the image from booth natively or from local disk
+            const fs = require('fs');
+            const path = require('path');
+            let imgBuffer;
+            if (model.image.startsWith('http')) {
+                const imgRes = await fetch(model.image);
+                imgBuffer = await imgRes.arrayBuffer();
+            } else {
+                imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+            }
             const imgName = `avatar_${model.id}.jpg`;
             const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
 
@@ -1981,8 +1988,15 @@ client.on('interactionCreate', async (interaction) => {
                     ownershipText = ownerMentions + (owners.length > 15 ? `... and ${owners.length - 15} more` : '');
                 }
 
-                const imgRes = await fetch(model.image);
-                const imgBuffer = await imgRes.arrayBuffer();
+                const fs = require('fs');
+                const path = require('path');
+                let imgBuffer;
+                if (model.image.startsWith('http')) {
+                    const imgRes = await fetch(model.image);
+                    imgBuffer = await imgRes.arrayBuffer();
+                } else {
+                    imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+                }
                 const imgName = `avatar_${model.id}.jpg`;
                 const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
 
