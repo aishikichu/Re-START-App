@@ -1165,7 +1165,7 @@ client.on('interactionCreate', async (interaction) => {
 
     if (commandName === 'fetchavatars') {
         const amount = interaction.options.getInteger('amount');
-        if (amount < 1 || amount > 10) return interaction.reply({ content: '❌ Amount must be between 1 and 10!', ephemeral: true });
+        if (amount < 1 || amount > 50) return interaction.reply({ content: '❌ Amount must be between 1 and 50!', ephemeral: true });
 
         let userRec = await User.findOne({ userId: interaction.user.id });
         if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) return interaction.reply({ content: '❌ Only Game Staff can use this command!', ephemeral: true });
@@ -1180,8 +1180,8 @@ client.on('interactionCreate', async (interaction) => {
             data.dailyFetchCount = 0;
         }
 
-        if (data.dailyFetchCount + amount > 10) {
-            return interaction.reply({ content: `❌ Global daily fetch limit reached! You can only fetch **${10 - data.dailyFetchCount}** more avatars today.`, ephemeral: true });
+        if (data.dailyFetchCount + amount > 50) {
+            return interaction.reply({ content: `❌ Global daily fetch limit reached! You can only fetch **${50 - data.dailyFetchCount}** more avatars today.`, ephemeral: true });
         }
 
         await interaction.deferReply({ ephemeral: true });
