@@ -1167,8 +1167,10 @@ client.on('interactionCreate', async (interaction) => {
         const amount = interaction.options.getInteger('amount');
         if (amount < 1 || amount > 50) return interaction.reply({ content: '❌ Amount must be between 1 and 50!', ephemeral: true });
 
+        await interaction.deferReply({ ephemeral: true });
+
         let userRec = await User.findOne({ userId: interaction.user.id });
-        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) return interaction.reply({ content: '❌ Only Game Staff can use this command!', ephemeral: true });
+        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) return interaction.editReply({ content: '❌ Only Game Staff can use this command!' });
 
         // Global Daily Fetch Limit Logic
         const data = getData();
@@ -1181,10 +1183,8 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         if (data.dailyFetchCount + amount > 50) {
-            return interaction.reply({ content: `❌ Global daily fetch limit reached! You can only fetch **${50 - data.dailyFetchCount}** more avatars today.`, ephemeral: true });
+            return interaction.editReply({ content: `❌ Global daily fetch limit reached! You can only fetch **${50 - data.dailyFetchCount}** more avatars today.` });
         }
-
-        await interaction.deferReply({ ephemeral: true });
         try {
             const cheerio = require('cheerio');
             const page = Math.floor(Math.random() * 5) + 1;
