@@ -364,7 +364,8 @@ client.once('ready', async () => {
         try {
             console.log('⏰ Running daily avatar fetch...');
             const cheerio = require('cheerio');
-            const res = await fetch('https://booth.pm/en/search/VRChat?category_ids%5B%5D=208&sort=new');
+            const page = Math.floor(Math.random() * 5) + 1;
+            const res = await fetch(`https://booth.pm/en/search/VRChat?category_ids%5B%5D=208&sort=wish&page=${page}`);
             const html = await res.text();
             const $ = cheerio.load(html);
             const items = $('.item-card').slice(0, 10).toArray();
@@ -1134,7 +1135,8 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.deferReply({ ephemeral: true });
         try {
             const cheerio = require('cheerio');
-            const res = await fetch('https://booth.pm/en/search/VRChat?category_ids%5B%5D=208&sort=new');
+            const page = Math.floor(Math.random() * 5) + 1;
+            const res = await fetch(`https://booth.pm/en/search/%E3%82%AA%E3%83%AA%E3%82%B8%E3%83%8A%E3%83%AB3D%E3%83%A2%E3%83%87%E3%83%AB?category_ids%5B%5D=208&sort=wish&page=${page}`);
             const html = await res.text();
             const $ = cheerio.load(html);
             const items = $('.item-card').slice(0, amount).toArray();
