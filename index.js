@@ -2505,7 +2505,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /hallofshame ─────────────────────────────────────────────────────────────
     if (interaction.commandName === 'hallofshame') {
         // Dev Only check - replace with actual dev ID if needed, or rely on Discord permissions
-        const devId = '532057997327335447'; // Note: update this ID if the dev ID is different
+        const devId = '510338423941496863'; // User's actual Discord ID
         if (interaction.user.id !== devId) {
             return interaction.reply({ content: '❌ Only the developer can use this command!', flags: 64 });
         }
