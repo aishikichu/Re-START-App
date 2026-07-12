@@ -21,14 +21,16 @@ async function scrape() {
             while ((match = regex.exec(html)) !== null) {
                 const img = match[1];
                 let name = match[2];
-                // filter out generic alts like "cover" or "thumbnail"
+                // filter out generic alts like "cover" or "thumbnail" and placeholders
                 if (name && name !== 'cover' && name !== 'BOOTHPLORER' && !name.includes('Avatar')) {
-                    // avoid duplicates
-                    if (!allAvatars.find(a => a.name === name)) {
-                        allAvatars.push({
-                            name: name.trim(),
-                            image: img.trim()
-                        });
+                    if (img && !img.includes('placehold')) {
+                        // avoid duplicates
+                        if (!allAvatars.find(a => a.name === name)) {
+                            allAvatars.push({
+                                name: name.trim(),
+                                image: img.trim()
+                            });
+                        }
                     }
                 }
             }

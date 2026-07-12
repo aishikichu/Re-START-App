@@ -45,7 +45,8 @@ Chat to earn XP, level up, and collect coins to spend in the Re:BOOTH shop!
 
 ### The Dynamic Shop
 * **`/shop`** — View the server shop! The shop has **Dynamic Pricing**, meaning the cost of items like Gacha Tokens will fluctuate every 3 hours based on a simulated market economy. It also sells Daily Cosmetics (Colors & Badges) that reset every 24 hours.
-* **`/buy <item> [amount]`** — Purchase an item from the shop (e.g., `/buy token 10` or `/buy badge`).
+  * **🌟 VIP Pass:** Keep an eye out! There is a rare (~2.5%) chance for the VIP Pass to appear in the shop. Buying it grants you **Double Gacha Luck**, **2x Daily Coins**, and a **15% Slots Override Chance** for 1 hour!
+* **`/buy <item> [amount]`** — Purchase an item from the shop (e.g., `/buy token 10`, `/buy vip`, or `/buy badge`).
 
 ---
 

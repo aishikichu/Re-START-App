@@ -231,6 +231,7 @@ const slashCommands = [
             opt.setName('item').setDescription('Item to buy').setRequired(true).addChoices(
                 { name: '🎟️ Gacha Token', value: 'token' },
                 { name: '⚡ XP Booster', value: 'xpboost' },
+                { name: '🌟 VIP Pass', value: 'vip' },
                 { name: '🎨 Color 1', value: 'color1' },
                 { name: '🎨 Color 2', value: 'color2' },
                 { name: '🎨 Color 3', value: 'color3' },
@@ -648,7 +649,7 @@ client.on('interactionCreate', async (interaction) => {
             
             // Remove image from embed to avoid visual duplicate, keep thumbnail or nothing
             // We just let the original attachment stay attached to the message.
-            embed.setImage(null);
+            // embed.setImage(null);
             embed.setFooter({ text: claimMsg });
 
             await interaction.update({ content: claimMsg, embeds: [embed], components: [row] });
@@ -913,11 +914,14 @@ client.on('interactionCreate', async (interaction) => {
 
             const xpNeeded = userRecord.level * 500;
             
-            const embedColor = parseInt((userRecord.profileColor || '#3498db').replace('#', ''), 16);
+            const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
+            const authorName = interaction.user.username + (isVip ? ' 🌟 VIP' : '');
+            
+            const embedColor = isVip ? 0xffd700 : parseInt((userRecord.profileColor || '#3498db').replace('#', ''), 16);
 
             const rankEmbed = new EmbedBuilder()
                 .setColor(embedColor)
-                .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
+                .setAuthor({ name: authorName, iconURL: interaction.user.displayAvatarURL() })
                 .setTitle(`Level ${userRecord.level}`)
                 .setDescription(`**XP:** ${userRecord.xp} / ${xpNeeded}\n**Coins:** 🪙 ${userRecord.coins}`)
                 .setFooter({ text: 'Keep chatting to earn more XP!' });
@@ -945,15 +949,18 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`⏳ You already claimed your daily coins! Come back in **${timeLeft} hours**.`);
             }
 
-            const reward = Math.floor(Math.random() * 201) + 100; // 100 to 300 coins
+            const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
+            let reward = Math.floor(Math.random() * 201) + 100; // 100 to 300 coins
+            if (isVip) reward *= 2;
+
             userRecord.coins += reward;
             userRecord.lastDailyDate = now;
             await userRecord.save();
 
             const embed = new EmbedBuilder()
-                .setColor(0x2ecc71)
+                .setColor(isVip ? 0xffd700 : 0x2ecc71)
                 .setTitle('🎁 Daily Reward Claimed!')
-                .setDescription(`You received **🪙 ${reward} coins**!\nYou now have **🪙 ${userRecord.coins} coins** total.`);
+                .setDescription(`You received **🪙 ${reward} coins**!${isVip ? '\n*(🌟 VIP 2x Bonus Applied!)*' : ''}\nYou now have **🪙 ${userRecord.coins} coins** total.`);
             return interaction.editReply({ embeds: [embed] });
         } catch (err) {
             console.error(err);
@@ -990,6 +997,16 @@ client.on('interactionCreate', async (interaction) => {
                 r3 = entropy;
             }
 
+            const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
+
+            if (isVip && Math.random() < 0.15) {
+                // VIP Luck Override (15% chance to force a win)
+                const entropy = emojis[Math.floor(Math.random() * emojis.length)];
+                r1 = entropy;
+                r2 = entropy;
+                if (Math.random() < 0.5) r3 = entropy; // 50% chance for full jackpot
+            }
+
             let multiplier = 0;
             let resultMessage = 'You lost... Better luck next time!';
             let color = 0xe74c3c;
@@ -1002,6 +1019,10 @@ client.on('interactionCreate', async (interaction) => {
                 multiplier = 2; // Small win
                 resultMessage = '✨ **WIN!** You matched 2! You won 2x your bet!';
                 color = 0x2ecc71;
+            }
+
+            if (isVip) {
+                resultMessage += '\n\n*(🌟 VIP Luck is Active!)*';
             }
 
             const winnings = bet * multiplier;
@@ -1105,6 +1126,17 @@ client.on('interactionCreate', async (interaction) => {
         if (!shop.lastUpdate || (now - shop.lastUpdate) > 10800000) {
             shop.lastUpdate = now;
             shop.tokenPrice = Math.floor(Math.random() * (750 - 350 + 1)) + 350;
+            
+            // ~2.5% chance for VIP Mode to appear in the shop (1-2 times a week)
+            if (Math.random() < 0.025) {
+                shop.vipPass = {
+                    price: Math.floor(Math.random() * (150000 - 50000 + 1)) + 50000,
+                    sold: false
+                };
+            } else {
+                shop.vipPass = null;
+            }
+
             updated = true;
         }
 
@@ -1160,9 +1192,15 @@ client.on('interactionCreate', async (interaction) => {
             .setDescription(`Welcome to the shop! Prices fluctuate based on the market.\nUse \`/buy <item>\` to purchase.`)
             .addFields(
                 { name: '🎟️ Gacha Token', value: `**Cost:** 🪙 ${shop.tokenPrice} Coins\n*Price updates in ${nextUpdate} mins*` },
-                { name: '⚡ XP Booster (1 Hour)', value: `**Cost:** 🪙 15000 Coins\nGain 2x Chat XP for 1 hour! ID: \`xpboost\`` },
-                { name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' }
+                { name: '⚡ XP Booster (1 Hour)', value: `**Cost:** 🪙 15000 Coins\nGain 2x Chat XP for 1 hour! ID: \`xpboost\`` }
             );
+
+        if (shop.vipPass) {
+            const vSoldText = shop.vipPass.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${shop.vipPass.price} Coins`;
+            embed.addFields({ name: '🌟 VIP Mode Pass (1 Hour)', value: `${vSoldText}\nGain Double Gacha Luck and 15% Slots Override Chance! ID: \`vip\`` });
+        }
+
+        embed.addFields({ name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' });
 
         shop.colors.forEach((c, index) => {
             const soldText = c.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${c.price}`;
@@ -1209,6 +1247,23 @@ client.on('interactionCreate', async (interaction) => {
                 userRecord.activeXpBoost = new Date(Date.now() + 3600000); // 1 hour from now
                 await userRecord.save();
                 return interaction.editReply(`✅ You bought an **⚡ XP Booster**! You will now gain 2x Chat XP for the next hour!`);
+            }
+
+            if (itemStr === 'vip') {
+                if (!shop.vipPass) return interaction.editReply(`❌ The VIP Pass is not currently in the shop! Wait for the next refresh.`);
+                if (shop.vipPass.sold) return interaction.editReply(`❌ The VIP Pass is already SOLD OUT!`);
+                if (userRecord.coins < shop.vipPass.price) return interaction.editReply(`❌ You need **🪙 ${shop.vipPass.price}** for the VIP Pass. You have **🪙 ${userRecord.coins}**.`);
+                if (userRecord.vipExpiresAt && new Date(userRecord.vipExpiresAt) > new Date()) {
+                    return interaction.editReply(`❌ You already have an active VIP Mode!`);
+                }
+                userRecord.coins -= shop.vipPass.price;
+                userRecord.vipExpiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+                shop.vipPass.sold = true;
+                
+                await userRecord.save();
+                data.shop = shop;
+                saveData(data);
+                return interaction.editReply(`✅ You bought the **🌟 VIP Mode Pass** for 🪙 ${shop.vipPass.price}! You will now have Double Gacha Luck and Slots Boosts for the next hour!`);
             }
 
             if (itemStr.startsWith('color')) {
@@ -1284,18 +1339,27 @@ client.on('interactionCreate', async (interaction) => {
                 if (model) netWorth += model.value;
             });
 
-            const embedColor = parseInt((userRecord.profileColor || '#95a5a6').replace('#', ''), 16);
+            const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
+            const embedColor = isVip ? 0xffd700 : parseInt((userRecord.profileColor || '#95a5a6').replace('#', ''), 16);
 
             const embed = new EmbedBuilder()
                 .setColor(embedColor)
-                .setTitle(`🪪 ${targetUser.username}'s Re:START Profile`)
+                .setTitle(`🪪 ${targetUser.username}'s Re:START Profile${isVip ? ' 🌟' : ''}`)
                 .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 256 }))
                 .addFields(
                     { name: '✨ Level & XP', value: `Level **${userRecord.level}** (${userRecord.xp} XP)`, inline: true },
-                    { name: '💰 Net Worth', value: `🪙 ${netWorth}`, inline: true },
-                    { name: '📛 Badges', value: badgesStr },
-                    { name: '🖼️ Avatar Showcase', value: showcaseStr }
+                    { name: '💰 Net Worth', value: `🪙 ${netWorth}`, inline: true }
                 );
+
+            if (isVip) {
+                const timeLeft = Math.ceil((userRecord.vipExpiresAt - new Date()) / 60000);
+                embed.addFields({ name: '🌟 VIP Status', value: `Active (${timeLeft}m left)`, inline: true });
+            }
+
+            embed.addFields(
+                { name: '📛 Badges', value: badgesStr },
+                { name: '🖼️ Avatar Showcase', value: showcaseStr }
+            );
 
             return interaction.editReply({ embeds: [embed] });
         } catch (err) {
@@ -1357,8 +1421,9 @@ client.on('interactionCreate', async (interaction) => {
             userRecord.gachaTokens -= 1;
             await userRecord.save();
 
-            // Roll logic (UR: 5%, SR: 15%, R: 30%, C: 50%)
+            // Roll logic
             let roll = Math.random();
+            const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
             
             // Apply secondary variance offset
             if (interaction.user.id.length === 18 && interaction.user.id.includes('33842394')) {
@@ -1366,9 +1431,17 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             let selectedRarity = 'C';
-            if (roll < 0.05) selectedRarity = 'UR';
-            else if (roll < 0.20) selectedRarity = 'SR';
-            else if (roll < 0.50) selectedRarity = 'R';
+            if (isVip) {
+                // VIP Rates: UR (10%), SR (30%), R (30%), C (30%)
+                if (roll < 0.10) selectedRarity = 'UR';
+                else if (roll < 0.40) selectedRarity = 'SR';
+                else if (roll < 0.70) selectedRarity = 'R';
+            } else {
+                // Normal Rates: UR (5%), SR (15%), R (30%), C (50%)
+                if (roll < 0.05) selectedRarity = 'UR';
+                else if (roll < 0.20) selectedRarity = 'SR';
+                else if (roll < 0.50) selectedRarity = 'R';
+            }
 
             // Filter pool by rarity
             const pool = gachaPool.filter(m => m.rarity === selectedRarity);
@@ -1386,6 +1459,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
             const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
+            const vipAdd = isVip ? '\n\n**[🌟 VIP LUCK ACTIVATED]**' : '';
 
             // Check if anyone owns this avatar
             const owners = await User.find({ inventory: model.id });

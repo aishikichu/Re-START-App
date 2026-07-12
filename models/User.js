@@ -14,7 +14,8 @@ const userSchema = new mongoose.Schema({
     activeXpBoost: { type: Date, default: null }, // Timestamp of when it expires
     showcase: { type: [String], default: [] }, // Array of avatar IDs for profile
     badges: { type: [String], default: [] },    // Array of emoji strings
-    affinity: { type: Number, default: 0 }     // Affinity points for dupes
+    affinity: { type: Number, default: 0 },     // Affinity points for dupes
+    vipExpiresAt: { type: Date, default: null } // VIP mode expiration
 });
 
 module.exports = mongoose.model('User', userSchema);

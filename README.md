@@ -41,7 +41,8 @@ Check out our step-by-step **[User Guide Documentation](https://docs.google.com/
 
 ### 💸 Dynamic Economy & Leveling
 The server feels alive! Users gain XP and Coins just by chatting. 
-Random **Coin Drops** appear in the chat for the fastest clicker to claim. Use your coins to gamble on the **Slot Machine**, or spend them in the **Dynamic Shop** where prices fluctuate every 3 hours based on a simulated market economy!
+Random **Coin Drops** appear in the chat for the fastest clicker to claim. Use your coins to gamble on the **Slot Machine**, or spend them in the **Dynamic Shop** where prices fluctuate every 3 hours based on a simulated market economy! 
+* Keep an eye out for the elusive **🌟 VIP Pass** in the shop, which grants Double Gacha Luck, 2x Daily Coins, and golden profile flair for 1 hour!
 
 ### 🎰 The Re:BOOTH Gacha System
 Spend your tokens to roll for 3D Booth Avatars! The pool contains **over 2,000 unique avatars**.

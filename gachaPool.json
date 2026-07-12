@@ -546,102 +546,11 @@
         "image": "https://booth.pximg.net/c/620x620/c80ffe79-d9d7-4481-bc64-40d80bcd71e6/i/4340548/cb43c1f7-bbdf-4115-942a-491c32b1de24_base_resized.jpg"
     },
     {
-        "id": "minase_c",
-        "name": "Minase",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Minase"
-    },
-    {
-        "id": "mizu_c",
-        "name": "Mizu",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Mizu"
-    },
-    {
         "id": "mafuyu_c",
         "name": "Mafuyu",
         "rarity": "C",
         "value": 100,
         "image": "https://booth.pximg.net/c/620x620/c946b4e7-8f95-4743-b946-a5dca27d93ae/i/5008522/13d2102c-eab2-4719-945f-e480d5a8b394_base_resized.jpg"
-    },
-    {
-        "id": "uzuki_c",
-        "name": "Uzuki",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Uzuki"
-    },
-    {
-        "id": "shino_c",
-        "name": "Shino",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Shino"
-    },
-    {
-        "id": "runa_c",
-        "name": "Runa",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Runa"
-    },
-    {
-        "id": "lilie_c",
-        "name": "Lilie",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Lilie"
-    },
-    {
-        "id": "komano_c",
-        "name": "Komano",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Komano"
-    },
-    {
-        "id": "emmie_c",
-        "name": "Emmie",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Emmie"
-    },
-    {
-        "id": "rucco_c",
-        "name": "Rucco",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Rucco"
-    },
-    {
-        "id": "hakka_c",
-        "name": "Hakka",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Hakka"
-    },
-    {
-        "id": "kokoa_c",
-        "name": "Kokoa",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Kokoa"
-    },
-    {
-        "id": "aria_c",
-        "name": "Aria",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Aria"
-    },
-    {
-        "id": "yuki_c",
-        "name": "Yuki",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Yuki"
     },
     {
         "id": "yuka_c",
@@ -651,109 +560,11 @@
         "image": "https://booth.pximg.net/c/620x620/1c35c496-0283-4684-8543-7149d9a7eb62/i/1336133/054367b1-071e-4ae5-a038-6bd4f10336c6_base_resized.jpg"
     },
     {
-        "id": "sakuya_c",
-        "name": "Sakuya",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Sakuya"
-    },
-    {
-        "id": "maron_c",
-        "name": "Maron",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Maron"
-    },
-    {
-        "id": "kanna_c",
-        "name": "Kanna",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Kanna"
-    },
-    {
-        "id": "sakura_c",
-        "name": "Sakura",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Sakura"
-    },
-    {
-        "id": "rei_c",
-        "name": "Rei",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Rei"
-    },
-    {
-        "id": "aoi_c",
-        "name": "Aoi",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Aoi"
-    },
-    {
-        "id": "akane_c",
-        "name": "Akane",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Akane"
-    },
-    {
         "id": "miku_c",
         "name": "Miku",
         "rarity": "C",
         "value": 100,
         "image": "https://booth.pximg.net/c/620x620/9d1a9ab5-7bc7-4205-bf61-091e8637205c/i/1210447/5ecb2a39-9100-4fb1-a443-7a8c7d8b75bb_base_resized.jpg"
-    },
-    {
-        "id": "rin_c",
-        "name": "Rin",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Rin"
-    },
-    {
-        "id": "len_c",
-        "name": "Len",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Len"
-    },
-    {
-        "id": "luka_c",
-        "name": "Luka",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Luka"
-    },
-    {
-        "id": "meiko_c",
-        "name": "Meiko",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Meiko"
-    },
-    {
-        "id": "kaito_c",
-        "name": "Kaito",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Kaito"
-    },
-    {
-        "id": "teto_c",
-        "name": "Teto",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Teto"
-    },
-    {
-        "id": "neru_c",
-        "name": "Neru",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Neru"
     },
     {
         "id": "haku_c",
@@ -768,47 +579,5 @@
         "rarity": "C",
         "value": 100,
         "image": "https://booth.pximg.net/c/620x620/1c1c6ec3-7908-4aea-b8ad-a2c579ad4ece/i/1210438/4e1cc3e6-6471-4599-ba4d-cea9f5fdd2ca_base_resized.jpg"
-    },
-    {
-        "id": "momo_c",
-        "name": "Momo",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Momo"
-    },
-    {
-        "id": "amane_c",
-        "name": "Amane",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Amane"
-    },
-    {
-        "id": "meryl_c",
-        "name": "Meryl",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Meryl"
-    },
-    {
-        "id": "tien_c",
-        "name": "Tien",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Tien"
-    },
-    {
-        "id": "ryoko_c",
-        "name": "Ryoko",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=Ryoko"
-    },
-    {
-        "id": "vrcgirla_c",
-        "name": "VRC Girl A",
-        "rarity": "C",
-        "value": 100,
-        "image": "https://placehold.co/400x400/png?text=VRC%20Girl%20A"
     }
 ]
