@@ -94,6 +94,17 @@ Make sure these are enabled in the [Discord Developer Portal](https://discord.co
 
 ---
 
+## 🛡️ Disclaimer / Copyright Notice
+
+This bot was created purely as a **non-commercial fan project** for a private group of friends. 
+- **No 3D Models Distributed:** This bot only displays the promotional cover art and names of the avatars. No actual `.unitypackage` files, textures, or 3D assets are distributed.
+- **Support the Creators:** This gacha game is meant to act as free exposure for these amazing VRChat creators. If you roll an avatar you like in the bot, please visit [Booth.pm](https://booth.pm/) to purchase the official model from the original creator!
+- **Not Affiliated:** We are not affiliated with, endorsed by, or sponsored by Booth, Pixiv, or any of the individual 3D model creators featured in the Re:BOOTH system. 
+
+*(If you are a creator and would like your avatar's promotional image removed from this fan project's repository, please open an issue and it will be removed immediately.)*
+
+---
+
 <div align="center">
   Made with 💜 by <a href="https://github.com/aishikichu">aishikichu</a>
 </div>
