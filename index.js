@@ -189,7 +189,7 @@ const slashCommands = [
     // ── Rank, Economy, & Profile ──────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('profile')
-        .setDescription('View your or another user\\'s Re:START profile!')
+        .setDescription("View your or another user's Re:START profile!")
         .addUserOption(opt => 
             opt.setName('user').setDescription('The user whose profile you want to view').setRequired(false)),
     new SlashCommandBuilder()
