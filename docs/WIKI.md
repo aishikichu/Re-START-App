@@ -54,8 +54,8 @@ Chat to earn XP, level up, and collect coins to spend in the Re:BOOTH shop!
 The bot features a massive, fully integrated Gacha system where you can collect over 2,000 VRChat Booth Avatars!
 
 * **`/gacha`** — Spend 1 Gacha Token to roll for a random Re:BOOTH Avatar. 
-  * The pool contains over 2,000 avatars, making the popular named avatars extremely rare.
-  * Popular avatars (like Maya, Imeris, Kikyo) come in four rarity variants: **[UR]**, **[SR]**, **[R]**, and **[C]**.
+  * The pool is dynamically built and curated by the community! Avatars are fetched daily from Booth.pm and approved by Game Staff.
+  * Popular avatars come in multiple rarity variants: **[UR]**, **[SR]**, and **[R]**.
   * **Duplicate Rolls:** If you claim an avatar you already own, you get **+1 Affinity Point** instead!
   * **Sniping:** If someone else clicks "Claim" on your roll before you do, they steal the drop! But they only get the Coin Value of the avatar, and the avatar itself is lost!
 * **`/inventory [user]`** — View your (or another user's) collection of Booth Avatars, total Gacha Tokens, and combined net worth.
@@ -81,6 +81,9 @@ These commands are reserved for server administrators or the Bot Developer.
 * **`/setupverify`** — Posts the server verification panel. Users click the "Verify Me!" button to receive the `Verified Homies` role.
 * **`/setuproles`** — Posts the self-assignable Role Panel.
 * **`/addrole <name> <color> <emoji>`** — Adds a new custom role to the Role Panel dynamically.
+
+### Game Staff Commands
+* **`/fetchavatars`** — Scrapes the top 50 newest popular VRChat avatars from Booth.pm and sends them to the `#avatar-reviews` channel. Staff can click `[Approve]` to customize the name/rarity and inject it into the live Gacha pool!
 
 ### Developer Only Commands
 *(Only accessible by the Developer ID)*

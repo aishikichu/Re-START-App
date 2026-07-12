@@ -1,6 +1,8 @@
 # How to Get the Re:START Profile Widget!
 
-Welcome! This guide will show you exactly how to add the Re:START profile widget to your Discord account. It only takes a few seconds, and once you set it up, you can customize your profile stats anytime!
+Welcome! **Re:START** is a fully comprehensive VRChat community bot featuring a dynamically curated Booth Avatar Gacha system, a massive server Economy, and native Profile Widgets.
+
+This guide will show you exactly how to add the Re:START profile widget to your Discord account. It only takes a few seconds, and once you set it up, you can customize your profile stats anytime!
 
 ---
 
