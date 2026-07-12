@@ -25,6 +25,7 @@ const gachaPool = require('./gachaPool.json'); // Import the list of Booth avata
 const WIDGET_CHANNEL_ID = '1525308184389222400';
 const ECONOMY_CHANNEL_ID = '1525505480808730694';
 const REBOOTH_CHANNEL_ID = '1525666791974764684';
+const SHOP_CHANNEL_ID = '1525685955212869804';
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
@@ -248,12 +249,15 @@ const slashCommands = [
     // ── Economy (Admin only) ──────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('addcoins')
-        .setDescription('💰 Give free coins to a user (Admin only)')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+        .setDescription('💰 Give free coins to a user (Developer only)')
         .addUserOption(opt => 
             opt.setName('user').setDescription('The user to give coins to').setRequired(true))
         .addIntegerOption(opt => 
             opt.setName('amount').setDescription('Amount of coins to give').setRequired(true).setMinValue(1)),
+
+    new SlashCommandBuilder()
+        .setName('purge')
+        .setDescription('🔥 Wipe all inventories and coins (Developer only)'),
 
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
@@ -708,8 +712,9 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // ── /addcoins (Admin) ─────────────────────────────────────────────────────
+    // ── /addcoins (Developer) ─────────────────────────────────────────────────
     if (interaction.commandName === 'addcoins') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Hidden command.', ephemeral: true });
         const targetUser = interaction.options.getUser('user');
         const amount = interaction.options.getInteger('amount');
         await interaction.deferReply({ ephemeral: true });
@@ -728,9 +733,23 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // ── /purge (Developer) ────────────────────────────────────────────────────
+    if (interaction.commandName === 'purge') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Hidden command.', ephemeral: true });
+        await interaction.deferReply({ ephemeral: true });
+        
+        try {
+            await User.updateMany({}, { $set: { coins: 0, gachaTokens: 0, inventory: [], wishlist: [], xp: 0, level: 1 } });
+            return interaction.editReply('✅ Database completely purged! Everyone is starting fresh.');
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred during the purge.');
+        }
+    }
+
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
         
         const embed = new EmbedBuilder()
             .setColor(0x9b59b6)
@@ -744,7 +763,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /buy ──────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'buy') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
         
         const item = interaction.options.getString('item');
         await interaction.deferReply();
@@ -811,10 +830,13 @@ client.on('interactionCreate', async (interaction) => {
             // Color based on rarity
             const colors = { 'UR': 0xff00ff, 'SR': 0xf1c40f, 'R': 0x3498db, 'C': 0x95a5a6 };
 
+            const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
+            const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
+
             const embed = new EmbedBuilder()
                 .setColor(colors[model.rarity])
-                .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}`)
-                .setDescription(`**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
+                .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
+                .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}`)
                 .setImage(model.image)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 

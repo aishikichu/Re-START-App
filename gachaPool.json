@@ -35,6 +35,20 @@
         "image": "https://placehold.co/400x400/png?text=Shinra"
     },
     {
+        "id": "lapwing",
+        "name": "Lapwing",
+        "rarity": "UR",
+        "value": 2000,
+        "image": "https://booth.pximg.net/c/620x620/a238249a-3754-4828-9be4-c031f8e3662d/i/4993931/b44c1ccb-5e99-4ba2-9a82-6d60e152b0d6_base_resized.jpg"
+    },
+    {
+        "id": "lasyusha",
+        "name": "Lasyusha",
+        "rarity": "UR",
+        "value": 2000,
+        "image": "https://placehold.co/400x400/png?text=Lasyusha"
+    },
+    {
         "id": "moe",
         "name": "Moe",
         "rarity": "SR",
@@ -70,6 +84,27 @@
         "image": "https://booth.pximg.net/c/620x620/817e9a9a-020c-4fac-8b21-96f80d6e25cb/i/5650156/95fc778d-3254-45ca-8a6e-2590dc30f87c_base_resized.jpg"
     },
     {
+        "id": "mishe",
+        "name": "Mishe",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://booth.pximg.net/c/620x620/ed52788c-0b3b-4e38-9ded-1e5797daf0ef/i/1256087/31156a98-56b4-4c63-93e5-ea4df9b35ac9_base_resized.jpg"
+    },
+    {
+        "id": "imera",
+        "name": "Imera",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://placehold.co/400x400/png?text=Imera"
+    },
+    {
+        "id": "anri",
+        "name": "Anri",
+        "rarity": "SR",
+        "value": 1000,
+        "image": "https://placehold.co/400x400/png?text=Anri"
+    },
+    {
         "id": "grus",
         "name": "Grus",
         "rarity": "R",
@@ -98,10 +133,59 @@
         "image": "https://placehold.co/400x400/png?text=Chise"
     },
     {
+        "id": "leefa",
+        "name": "Leefa",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://booth.pximg.net/c/620x620/a724e93d-5634-41cf-ac1f-8f8985536a5a/i/3659436/975cd340-c669-4298-906d-172b9b5b097a_base_resized.jpg"
+    },
+    {
+        "id": "wolferia",
+        "name": "Wolferia",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://booth.pximg.net/c/620x620/a724e93d-5634-41cf-ac1f-8f8985536a5a/i/2709610/6b1c737c-e9b4-406f-976b-ed5f88490259_base_resized.jpg"
+    },
+    {
+        "id": "kuuta",
+        "name": "Kuuta",
+        "rarity": "R",
+        "value": 500,
+        "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/2953391/d16328b7-6585-42e3-af84-83bde2f7c2f7_base_resized.jpg"
+    },
+    {
         "id": "rusk",
         "name": "Rusk",
         "rarity": "C",
         "value": 100,
         "image": "https://booth.pximg.net/c/620x620/61a3b2d7-b4b1-4f97-9e48-ffe959b26ae9/i/2559783/94e7e34d-c8fa-41e1-b2ea-433f7ebb8b7c_base_resized.jpg"
+    },
+    {
+        "id": "anon",
+        "name": "Anon",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://placehold.co/400x400/png?text=Anon"
+    },
+    {
+        "id": "lame",
+        "name": "Lame",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://placehold.co/400x400/png?text=Lame"
+    },
+    {
+        "id": "ququ",
+        "name": "QuQu",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://booth.pximg.net/c/620x620/a8057578-1c7a-4a40-a854-194c23188696/i/4123536/41fd4558-f10c-4e45-a0db-3e51f3ef8a16_base_resized.jpg"
+    },
+    {
+        "id": "mamehinata",
+        "name": "Mamehinata",
+        "rarity": "C",
+        "value": 100,
+        "image": "https://booth.pximg.net/c/620x620/c80ffe79-d9d7-4481-bc64-40d80bcd71e6/i/4340548/cb43c1f7-bbdf-4115-942a-491c32b1de24_base_resized.jpg"
     }
 ]
