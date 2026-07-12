@@ -588,7 +588,19 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             // 3. Add to gachaPool.json (Variant Logic)
-            const baseName = embed.title.replace('New Avatar Submission: ', '').replace(/\[.*\] /, '');
+            let rawTitle = embed.title.replace('New Avatar Submission: ', '').replace(/\[.*\] /, '');
+            let baseName = rawTitle;
+            
+            // Extract clean English name
+            let englishPart = rawTitle.replace(/[^\x00-\x7F]/g, " "); // Replace non-ascii with space
+            const keywords = ['original', '3d', 'model', 'avatar', 'vrchat', 'vrc', 'quest', 'pc', 'physbone', 'unity', 'fbx', 'vrm', 'ready', 'for', 'the', 'new', 'character'];
+            let words = englishPart.split(/[\s\-\/|【】『』()]+/).filter(w => w && !keywords.includes(w.toLowerCase()));
+            
+            if (words.length > 0) {
+                baseName = words.join(' ').trim();
+            } else {
+                baseName = rawTitle.substring(0, 25); // Fallback if no English words
+            }
             const baseUrl = embed.url || 'https://booth.pm/';
             let addedVariants = [];
 
