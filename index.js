@@ -303,6 +303,41 @@ client.once('ready', async () => {
     }
 });
 
+// ─── Message Handler (Random Coin Drops) ──────────────────────────────────────
+let messageCountSinceDrop = 0;
+let nextDropThreshold = Math.floor(Math.random() * 15) + 15; // 15 to 30
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+
+    if (message.channelId === ECONOMY_CHANNEL_ID) {
+        messageCountSinceDrop++;
+        
+        if (messageCountSinceDrop >= nextDropThreshold) {
+            messageCountSinceDrop = 0;
+            nextDropThreshold = Math.floor(Math.random() * 15) + 15;
+            
+            const dropAmount = Math.floor(Math.random() * 401) + 100; // 100 to 500
+
+            const embed = new EmbedBuilder()
+                .setColor(0xf1c40f)
+                .setTitle('💰 Random Coin Drop!')
+                .setDescription(`A bag containing **🪙 ${dropAmount} Coins** just dropped!`)
+                .setFooter({ text: 'First person to click the button claims the coins!' });
+
+            const claimButton = new ButtonBuilder()
+                .setCustomId(`grab_coins_${dropAmount}`)
+                .setLabel('Grab Coins!')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('✋');
+
+            const row = new ActionRowBuilder().addComponents(claimButton);
+
+            await message.channel.send({ embeds: [embed], components: [row] });
+        }
+    }
+});
+
 // ─── Interaction Handler ──────────────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
 
@@ -324,6 +359,41 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Could not update your role. Make sure my role is above the target role in Server Settings!', ephemeral: true });
+        }
+    }
+
+    // ── Button: Grab Coins ────────────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('grab_coins_')) {
+        const dropAmount = parseInt(interaction.customId.split('_')[2]);
+        const claimerId = interaction.user.id;
+
+        try {
+            if (interaction.message.components[0].components[0].disabled) {
+                return interaction.reply({ content: '❌ Too late! Someone already grabbed these coins.', flags: 64 });
+            }
+
+            let userRecord = await User.findOne({ userId: claimerId });
+            if (!userRecord) userRecord = new User({ userId: claimerId });
+
+            userRecord.coins += dropAmount;
+            await userRecord.save();
+
+            const disabledButton = new ButtonBuilder()
+                .setCustomId('claimed_already')
+                .setLabel(`Claimed by ${interaction.user.username}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true);
+
+            const row = new ActionRowBuilder().addComponents(disabledButton);
+            const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                .setColor(0x95a5a6)
+                .setFooter({ text: `💰 Claimed by ${interaction.user.username}` });
+
+            await interaction.update({ embeds: [embed], components: [row] });
+            return;
+        } catch (err) {
+            console.error(err);
+            return interaction.reply({ content: '❌ Error claiming coins!', flags: 64 });
         }
     }
 
@@ -747,16 +817,33 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    function getShopPrices() {
+        let data = getData();
+        let shop = data.shop || {};
+        const now = Date.now();
+        // Change prices every 3 hours (10800000 ms)
+        if (!shop.lastUpdate || (now - shop.lastUpdate) > 10800000) {
+            shop.lastUpdate = now;
+            shop.tokenPrice = Math.floor(Math.random() * (750 - 350 + 1)) + 350;
+            data.shop = shop;
+            saveData(data);
+        }
+        return shop;
+    }
+
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
         if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
         
+        const shop = getShopPrices();
+        const nextUpdate = Math.ceil((10800000 - (Date.now() - shop.lastUpdate)) / 1000 / 60);
+
         const embed = new EmbedBuilder()
             .setColor(0x9b59b6)
-            .setTitle('🛒 Re:START Shop')
-            .setDescription('Welcome to the shop! Use `/buy <item>` to purchase.')
+            .setTitle('🛒 Re:START Shop (Dynamic Pricing)')
+            .setDescription(`Welcome to the shop! Prices fluctuate based on the market.\nNext price shift in **${nextUpdate} minutes**.\nUse \`/buy <item>\` to purchase.`)
             .addFields(
-                { name: '🎟️ Gacha Token', value: '**Cost:** 🪙 500 Coins\nUse this token with `/gacha` to roll for Booth avatars!' }
+                { name: '🎟️ Gacha Token', value: `**Cost:** 🪙 ${shop.tokenPrice} Coins\nUse this token with \`/gacha\` to roll for Booth avatars!` }
             );
         return interaction.reply({ embeds: [embed] });
     }
@@ -772,14 +859,16 @@ client.on('interactionCreate', async (interaction) => {
             let userRecord = await User.findOne({ userId: interaction.user.id });
             if (!userRecord) userRecord = new User({ userId: interaction.user.id });
 
+            const shop = getShopPrices();
+
             if (item === 'token') {
-                if (userRecord.coins < 500) {
-                    return interaction.editReply(`❌ You don't have enough coins! A Gacha Token costs **🪙 500**. You have **🪙 ${userRecord.coins}**.`);
+                if (userRecord.coins < shop.tokenPrice) {
+                    return interaction.editReply(`❌ You don't have enough coins! A Gacha Token costs **🪙 ${shop.tokenPrice}**. You have **🪙 ${userRecord.coins}**.`);
                 }
-                userRecord.coins -= 500;
+                userRecord.coins -= shop.tokenPrice;
                 userRecord.gachaTokens += 1;
                 await userRecord.save();
-                return interaction.editReply(`✅ You successfully bought **1x 🎟️ Gacha Token** for 🪙 500 Coins!\nYou now have **${userRecord.gachaTokens} Tokens**. Use \`/gacha\` to roll!`);
+                return interaction.editReply(`✅ You successfully bought **1x 🎟️ Gacha Token** for 🪙 ${shop.tokenPrice} Coins!\nYou now have **${userRecord.gachaTokens} Tokens**. Use \`/gacha\` to roll!`);
             }
         } catch (err) {
             console.error(err);
