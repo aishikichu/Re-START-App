@@ -241,6 +241,9 @@ const slashCommands = [
     new SlashCommandBuilder()
         .setName('hallofshame')
         .setDescription('👑 [DEV ONLY] Post the top 3 swearers to the Hall of Re:START channel'),
+    new SlashCommandBuilder()
+        .setName('giveeveryonestartingcoins')
+        .setDescription('👑 [DEV ONLY] Give 500 starting coins to every user in the database'),
 
     // ── Gacha System ──────────────────────────────────────────────────────────
     new SlashCommandBuilder()
@@ -2487,6 +2490,24 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.editReply({
             content: `✅ Issued widget identity for **${target.tag}** (\`${userId}\`)!\nCheck Render logs to confirm it worked.`
         });
+    }
+
+    // ── /giveeveryonestartingcoins ───────────────────────────────────────────────
+    if (interaction.commandName === 'giveeveryonestartingcoins') {
+        const devId = '510338423941496863'; // User's actual Discord ID
+        if (interaction.user.id !== devId) {
+            return interaction.reply({ content: '❌ Only the developer can use this command!', flags: 64 });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const result = await User.updateMany({}, { $inc: { coins: 500 } });
+            return interaction.editReply(`✅ Success! Gave **500 coins** to **${result.modifiedCount}** users in the database!`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Failed to give coins. Check console for errors.');
+        }
     }
 
     // ── /hallofshame ─────────────────────────────────────────────────────────────
