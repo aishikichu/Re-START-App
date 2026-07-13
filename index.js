@@ -298,6 +298,17 @@ const slashCommands = [
         .addStringOption(opt =>
             opt.setName('avatar_id').setDescription('The ID of the avatar').setRequired(true)),
     new SlashCommandBuilder()
+        .setName('upgrade')
+        .setDescription('Upgrade an avatar\'s RPG stats using Affinity and Coins')
+        .addStringOption(opt =>
+            opt.setName('avatar_id').setDescription('The ID of the avatar to upgrade').setRequired(true))
+        .addStringOption(opt =>
+            opt.setName('stat').setDescription('The stat to upgrade').setRequired(true).addChoices(
+                { name: '🏃‍♂️ Speed (Reduces Work Time)', value: 'speed' },
+                { name: '🛡️ Endurance (Reduces Rest Time)', value: 'endurance' },
+                { name: '🍀 Luck (Increases Wage Multiplier & Heist Chance)', value: 'luck' }
+            )),
+    new SlashCommandBuilder()
         .setName('sell')
         .setDescription('Sell a Re:BOOTH avatar from your inventory for Coins')
         .addStringOption(opt => 
@@ -2695,10 +2706,21 @@ client.on('interactionCreate', async (interaction) => {
             const sortedItems = Object.values(inventoryCounts).sort((a, b) => b.value - a.value);
             
             let desc = '';
+            const now = new Date();
             sortedItems.forEach(item => {
                 const affPoints = userRecord.avatarAffinity?.get(item.id) || 0;
                 const affPercent = Math.min(affPoints * 10, 100);
-                desc += `**[${item.rarity}]** ${item.name} (ID: \`${item.id}\`) — 🪙 ${item.value} ${affPercent > 0 ? ` **(${affPercent}% Affinity)**` : ''}\n`;
+                
+                let stateText = '';
+                if (userRecord.avatarJailTime && userRecord.avatarJailTime.get(item.id) > now) {
+                    stateText = ' 🚓 *(Jailed)*';
+                } else if (userRecord.activeWorkJobs && userRecord.activeWorkJobs.get(item.id) > now) {
+                    stateText = ' 🍔 *(Working)*';
+                } else if (userRecord.avatarRestTime && userRecord.avatarRestTime.get(item.id) > now) {
+                    stateText = ' 🛌 *(Resting)*';
+                }
+
+                desc += `**[${item.rarity}]** ${item.name} (ID: \`${item.id}\`) — 🪙 ${item.value} ${affPercent > 0 ? ` **(${affPercent}% Affinity)**` : ''}${stateText}\n`;
             });
 
             const embedColor = parseInt((userRecord.profileColor || '#3498db').replace('#', ''), 16);
@@ -2758,10 +2780,22 @@ client.on('interactionCreate', async (interaction) => {
                 const imgName = `avatar_${model.id}.jpg`;
                 const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
 
+                let statsText = '';
+                const userRecord = await User.findOne({ userId: interaction.user.id });
+                if (userRecord && userRecord.inventory.includes(model.id)) {
+                    let spd = 1; let end = 1; let lck = 1;
+                    if (userRecord.avatarStats && userRecord.avatarStats.has(model.id)) {
+                        const s = userRecord.avatarStats.get(model.id);
+                        if (s) { spd = s.speed||1; end = s.endurance||1; lck = s.luck||1; }
+                    }
+                    const aff = userRecord.avatarAffinity?.get(model.id) || 0;
+                    statsText = `\n\n**Your RPG Stats:**\n💕 Affinity: ${Math.min(aff * 10, 100)}%\n🏃‍♂️ Speed: Lv ${spd}\n🛡️ Endurance: Lv ${end}\n🍀 Luck: Lv ${lck}\n*Use \`/upgrade\` to increase these!*`;
+                }
+
                 const embed = new EmbedBuilder()
                     .setColor(colors[model.rarity] || 0x95a5a6)
                     .setTitle(`🔍 Avatar Lookup: ${model.name}`)
-                    .setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n\n🧍 **Belongs to:**\n${ownershipText}`)
+                    .setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n**Power:** ⚔️ ${model.power || 50}${statsText}\n\n🧍 **Belongs to:**\n${ownershipText}`)
                     .setImage(`attachment://${imgName}`);
 
                 return interaction.editReply({ embeds: [embed], files: [attachment] });
@@ -2787,7 +2821,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 embed.addFields({
                     name: `[${model.rarity}] ${model.name} (ID: \`${model.id}\`)`,
-                    value: `**Value:** 🪙 ${model.value}\n**Owners:** ${ownershipText}`
+                    value: `**Value:** 🪙 ${model.value} | **Power:** ⚔️ ${model.power || 50}\n**Owners:** ${ownershipText}`
                 });
             }
 
@@ -2795,6 +2829,69 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error looking up avatar!');
+        }
+    }
+
+    // ── /upgrade ──────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'upgrade') {
+        const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID];
+        if (!allowedChannels.includes(interaction.channelId)) return interaction.reply({ content: `⚠️ Please use upgrade commands in <#${REBOOTH_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+        const statToUpgrade = interaction.options.getString('stat'); // 'speed', 'endurance', 'luck'
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.inventory.includes(avatarId)) {
+                return interaction.editReply(`❌ You don't own an avatar with ID \`${avatarId}\`!`);
+            }
+
+            const model = gachaPool.find(m => m.id === avatarId);
+            if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
+
+            if (!userRecord.avatarStats) userRecord.avatarStats = new Map();
+            let stats = userRecord.avatarStats.get(avatarId) || { speed: 1, endurance: 1, luck: 1 };
+            
+            const currentLevel = stats[statToUpgrade] || 1;
+            const maxLevel = 10;
+            if (currentLevel >= maxLevel) {
+                return interaction.editReply(`❌ **${model.name}** is already at Max Level (${maxLevel}) for ${statToUpgrade}!`);
+            }
+
+            const costCoins = currentLevel * 5000;
+            const costAffinity = currentLevel; // 1 Affinity per level (10% affinity = 1 point)
+
+            const currentAffinity = userRecord.avatarAffinity?.get(avatarId) || 0;
+
+            if (userRecord.coins < costCoins || currentAffinity < costAffinity) {
+                return interaction.editReply(`❌ You need **🪙 ${costCoins} Coins** and **💕 ${costAffinity * 10}% Affinity** to upgrade to Lv ${currentLevel + 1}.\n*You have 🪙 ${userRecord.coins} and 💕 ${Math.min(currentAffinity * 10, 100)}%.*`);
+            }
+
+            // Deduct costs
+            userRecord.coins -= costCoins;
+            userRecord.avatarAffinity.set(avatarId, currentAffinity - costAffinity);
+            
+            // Apply upgrade
+            stats[statToUpgrade] = currentLevel + 1;
+            userRecord.avatarStats.set(avatarId, stats);
+            
+            userRecord.markModified('avatarAffinity');
+            userRecord.markModified('avatarStats');
+            await userRecord.save();
+
+            const statEmoji = statToUpgrade === 'speed' ? '🏃‍♂️ Speed' : (statToUpgrade === 'endurance' ? '🛡️ Endurance' : '🍀 Luck');
+
+            const embed = new EmbedBuilder()
+                .setColor(0xf1c40f)
+                .setTitle('✨ RPG Stat Upgraded!')
+                .setDescription(`Successfully upgraded **${model.name}**'s **${statEmoji}** to **Level ${currentLevel + 1}**!\n\nThis cost 🪙 ${costCoins} Coins and 💕 ${costAffinity * 10}% Affinity.`)
+                .setThumbnail(model.image);
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error upgrading avatar!');
         }
     }
 
@@ -2944,6 +3041,14 @@ client.on('interactionCreate', async (interaction) => {
             const model = gachaPool.find(m => m.id === avatarId);
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
 
+            // Check if avatar is resting
+            if (userRecord.avatarRestTime && userRecord.avatarRestTime.has(avatarId)) {
+                const restReleaseDate = userRecord.avatarRestTime.get(avatarId);
+                if (restReleaseDate > new Date()) {
+                    return interaction.editReply(`🛌 **Shhh!** **${model.name}** is currently resting after a hard shift! They will wake up <t:${Math.floor(restReleaseDate.getTime()/1000)}:R>.`);
+                }
+            }
+
             if (userRecord.activeWorkJobs.has(avatarId)) {
                 const existingEndTime = userRecord.activeWorkJobs.get(avatarId);
                 if (existingEndTime > new Date()) {
@@ -2957,9 +3062,18 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`❌ You have reached your maximum capacity of **${userRecord.workSlots} concurrent Work Slots**! Use \`/buy work_slot\` to expand your empire or wait for a shift to finish and \`/claimwork\`.`);
             }
 
-            // Set work for 4 hours
-            const workDurationHours = 4;
-            const endTime = new Date(Date.now() + workDurationHours * 60 * 60 * 1000);
+            // Get Speed Stat
+            let speedLevel = 1;
+            if (userRecord.avatarStats && userRecord.avatarStats.has(avatarId)) {
+                const stats = userRecord.avatarStats.get(avatarId);
+                if (stats && stats.speed) speedLevel = stats.speed;
+            }
+
+            // Set work for 4 hours minus 10 minutes per Speed level (max 2 hours reduction at Lv 13)
+            let workDurationMinutes = 240 - ((speedLevel - 1) * 10);
+            if (workDurationMinutes < 120) workDurationMinutes = 120; // 2 hours minimum
+            
+            const endTime = new Date(Date.now() + workDurationMinutes * 60 * 1000);
             
             userRecord.activeWorkJobs.set(avatarId, endTime);
             userRecord.markModified('activeWorkJobs');
@@ -3008,18 +3122,42 @@ client.on('interactionCreate', async (interaction) => {
             const now = new Date();
             let desc = '';
 
+            if (!userRecord.avatarRestTime) userRecord.avatarRestTime = new Map();
+
             for (const [avatarId, endTime] of userRecord.activeWorkJobs.entries()) {
                 if (now >= endTime) {
                     const model = gachaPool.find(m => m.id === avatarId);
                     const power = model ? (model.power || 50) : 50;
                     
-                    const multiplier = 1 + Math.random();
+                    // Get Luck and Endurance Stats
+                    let luckLevel = 1;
+                    let enduranceLevel = 1;
+                    if (userRecord.avatarStats && userRecord.avatarStats.has(avatarId)) {
+                        const stats = userRecord.avatarStats.get(avatarId);
+                        if (stats) {
+                            if (stats.luck) luckLevel = stats.luck;
+                            if (stats.endurance) enduranceLevel = stats.endurance;
+                        }
+                    }
+
+                    // Luck stat increases the multiplier max (+0.05 per level)
+                    const luckBonus = (luckLevel - 1) * 0.05;
+                    const multiplier = 1 + Math.random() + luckBonus;
                     const rewardCoins = Math.floor(power * multiplier);
+
+                    // Set resting phase (base 2 hours, minus 10 mins per endurance level, max reduction 1h 40m)
+                    let restDurationMinutes = 120 - ((enduranceLevel - 1) * 10);
+                    if (restDurationMinutes < 20) restDurationMinutes = 20; // 20 minutes minimum rest
+                    
+                    const restEnd = new Date(Date.now() + restDurationMinutes * 60 * 1000);
+                    userRecord.avatarRestTime.set(avatarId, restEnd);
 
                     totalReward += rewardCoins;
                     claimedAvatars += 1;
                     userRecord.activeWorkJobs.delete(avatarId);
-                    desc += `✅ **${model ? model.name : 'Unknown'}** earned **🪙 ${rewardCoins} Coins**\n`;
+                    
+                    const restTimeStr = restDurationMinutes >= 60 ? `${Math.floor(restDurationMinutes/60)}h ${restDurationMinutes%60}m` : `${restDurationMinutes}m`;
+                    desc += `✅ **${model ? model.name : 'Unknown'}** earned **🪙 ${rewardCoins} Coins** (Resting: ${restTimeStr})\n`;
                 } else {
                     stillWorking += 1;
                 }
@@ -3031,6 +3169,7 @@ client.on('interactionCreate', async (interaction) => {
 
             userRecord.coins += totalReward;
             userRecord.markModified('activeWorkJobs');
+            userRecord.markModified('avatarRestTime');
             await userRecord.save();
 
             const embed = new EmbedBuilder()
@@ -3066,8 +3205,16 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
 
-            if (userRecord.workingAvatar === avatarId && userRecord.workEndTime > new Date()) {
+            if (userRecord.activeWorkJobs && userRecord.activeWorkJobs.has(avatarId) && userRecord.activeWorkJobs.get(avatarId) > new Date()) {
                 return interaction.editReply(`❌ They are already slaving away at McDonald's! Let them finish their shift before forcing them into a heist!`);
+            }
+
+            // Check if avatar is resting
+            if (userRecord.avatarRestTime && userRecord.avatarRestTime.has(avatarId)) {
+                const restReleaseDate = userRecord.avatarRestTime.get(avatarId);
+                if (restReleaseDate > new Date()) {
+                    return interaction.editReply(`🛌 **Shhh!** They are currently resting after a hard shift! They will wake up <t:${Math.floor(restReleaseDate.getTime()/1000)}:R>. You can't send them on a heist!`);
+                }
             }
 
             // Global riskywork timer (4 hours)
@@ -3081,6 +3228,13 @@ client.on('interactionCreate', async (interaction) => {
             const model = gachaPool.find(m => m.id === avatarId);
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
 
+            // Get Luck Stat
+            let luckLevel = 1;
+            if (userRecord.avatarStats && userRecord.avatarStats.has(avatarId)) {
+                const stats = userRecord.avatarStats.get(avatarId);
+                if (stats && stats.luck) luckLevel = stats.luck;
+            }
+
             const power = model ? (model.power || 50) : 50;
             
             let winChance = 0.10;
@@ -3088,6 +3242,9 @@ client.on('interactionCreate', async (interaction) => {
             else if (model.rarity === 'SR') winChance = 0.12;
             else if (model.rarity === 'R') winChance = 0.14;
             else if (model.rarity === 'C') winChance = 0.16;
+
+            // Luck stat increases win chance (+1% per level)
+            winChance += (luckLevel - 1) * 0.01;
 
             const win = Math.random() < winChance;
 
