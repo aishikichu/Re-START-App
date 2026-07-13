@@ -4,19 +4,21 @@ Meet our custom-built server bot, packed with exclusive features to make chattin
 ## 🪙 The Economy
 Chatting actively in the server will automatically reward you with **Coins**!
 > 🔹 **`/daily`** - Claim your free daily coin allowance! Keep your streak going to earn more coins and a Gacha Token milestone every 7 days!
-> 🔹 **`/work`** - Send one of your avatars to flip burgers at McDonald's for 4 hours to earn coins! The more popular the avatar, the higher the payout!
-> 🔹 **`/riskywork`** - Send an avatar on a highly illegal and dangerous mission for a 50/50 chance at massive payouts! Fail and they go to jail!
-> 🔹 **`/claimwork`** - Claim your avatar's minimum wage after they survive their shift!
+> 🔹 **`/work`** - Send one of your avatars to flip burgers at McDonald's for 4 hours to earn coins! (Expand your empire with `/buy work_slot`)
+> 🔹 **`/riskywork`** - Send an avatar on a highly illegal and dangerous mission for a chance at massive payouts! Fail and they go to jail!
+> 🔹 **`/claimwork`** - Claim your avatar's minimum wage after they survive their shift! (Avatars will need a 2-hour rest after working).
+> 🔹 **`/upgrade`** - Level up your avatar's RPG Stats (Speed, Endurance, Luck) using Coins and Affinity Points to boost their work efficiency!
 > 🔹 **`/balance`** - Check your current coin balance and total chat XP.
 > 🔹 **`/leaderboard`** - Compete for the #1 spot! See the Top 10 Richest players, Highest Levels, and Top Avatar Collectors!
 > 🔹 **`/give`** - Feeling generous? Transfer your coins to another member!
 > 🔹 **`/beg`** - Down bad? Beg the server for some spare coins!
 
 ## 🎲 Casino Minigames
-Want to risk it all for a huge payout? Head to the economy channel!
+Want to risk it all for a huge payout? Head to the economy channel! (Note: Max jackpot limits apply!)
 > 🔹 **`/blackjack`** - Play an interactive game of Blackjack against the dealer!
 > 🔹 **`/roulette`** - Bet your coins on Red, Black, or Green!
 > 🔹 **`/coinflip`** - The classic 50/50! Flip a coin and double your bet if you guess right!
+> 🔹 **`/slots`** - Spin the slot machine for a chance to win the Jackpot!
 
 ## 🎰 Re:BOOTH Gacha System
 The server features a custom Avatar Trading Card game! Roll the Gacha, claim your favorites, and build your dream showcase!
