@@ -1201,7 +1201,7 @@ client.on('interactionCreate', async (interaction) => {
                 claimerRecord.coins += amount;
                 claimMsg = `🎉 <@${interaction.user.id}> claimed the bag and got **🪙 ${amount} Coins**!`;
             } else if (dropType === 'star') {
-                claimerRecord.tokens = (claimerRecord.tokens || 0) + 1;
+                claimerRecord.gachaTokens = (claimerRecord.gachaTokens || 0) + 1;
                 claimMsg = `🌟 **LUCKY!** <@${interaction.user.id}> caught the star and received **1 Gacha Token**!`;
             } else if (dropType === 'trap') {
                 if (Math.random() < 0.20) {
