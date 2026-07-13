@@ -2310,7 +2310,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 256 }))
                 .addFields(
                     { name: '✨ Level & XP', value: `Level **${userRecord.level}** (${userRecord.xp} XP)`, inline: true },
-                    { name: '💰 Net Worth', value: `🪙 ${netWorth}`, inline: true }
+                    { name: '💰 Balance & Net Worth', value: `Balance: **🪙 ${userRecord.coins}**\nNet Worth: **🪙 ${netWorth}**`, inline: true }
                 );
 
             if (isVip) {
@@ -2324,9 +2324,46 @@ client.on('interactionCreate', async (interaction) => {
                 embed.addFields({ name: '🌩️ Bad Luck', value: `Active (${timeLeft}m left)`, inline: true });
             }
 
+            // Cooldowns Calculation
+            let cooldownsStr = '';
+            
+            // Daily Cooldown
+            if (userRecord.lastDailyDate) {
+                const nextDaily = new Date(userRecord.lastDailyDate.getTime() + 24 * 60 * 60 * 1000);
+                if (nextDaily > new Date()) {
+                    cooldownsStr += `🎁 **Daily:** <t:${Math.floor(nextDaily.getTime() / 1000)}:R>\n`;
+                } else {
+                    cooldownsStr += `🎁 **Daily:** ✅ Ready!\n`;
+                }
+            } else {
+                cooldownsStr += `🎁 **Daily:** ✅ Ready!\n`;
+            }
+
+            // Avatar Claim Cooldown (1 hour)
+            if (userRecord.lastCardDropClaimDate) {
+                const nextClaim = new Date(userRecord.lastCardDropClaimDate.getTime() + 60 * 60 * 1000);
+                if (nextClaim > new Date()) {
+                    cooldownsStr += `🎴 **Avatar Claim:** <t:${Math.floor(nextClaim.getTime() / 1000)}:R>\n`;
+                } else {
+                    cooldownsStr += `🎴 **Avatar Claim:** ✅ Ready!\n`;
+                }
+            } else {
+                cooldownsStr += `🎴 **Avatar Claim:** ✅ Ready!\n`;
+            }
+
+            // Coin Snipe Cooldown (5 per hour)
+            const snipesUsed = userRecord.coinSnipeCount || 0;
+            const snipeReset = userRecord.lastCoinSnipeReset;
+            if (snipeReset && snipeReset > new Date()) {
+                cooldownsStr += `🪙 **Coin Snipes:** ${5 - snipesUsed}/5 (Resets <t:${Math.floor(snipeReset.getTime() / 1000)}:R>)\n`;
+            } else {
+                cooldownsStr += `🪙 **Coin Snipes:** 5/5 ✅ Ready!\n`;
+            }
+
             embed.addFields(
-                { name: '📛 Badges', value: badgesStr },
-                { name: '🖼️ Avatar Showcase', value: showcaseStr }
+                { name: '⏳ Cooldowns', value: cooldownsStr, inline: false },
+                { name: '📛 Badges', value: badgesStr, inline: false },
+                { name: '🖼️ Avatar Showcase', value: showcaseStr, inline: false }
             );
 
             return interaction.editReply({ embeds: [embed] });
