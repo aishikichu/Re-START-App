@@ -1475,8 +1475,14 @@ client.on('interactionCreate', async (interaction) => {
             let currentMessage = '';
             
             for (const chunk of chunks) {
-                if (currentMessage.length + chunk.length > 1900) {
-                    if (currentMessage.trim()) await channel.send({ content: currentMessage.trim() });
+                // Embed descriptions can hold up to 4096 characters
+                if (currentMessage.length + chunk.length > 3900) {
+                    if (currentMessage.trim()) {
+                        const embed = new EmbedBuilder()
+                            .setColor(0x3498db)
+                            .setDescription(currentMessage.trim());
+                        await channel.send({ embeds: [embed] });
+                    }
                     currentMessage = chunk + '\n\n';
                 } else {
                     currentMessage += chunk + '\n\n';
@@ -1484,7 +1490,10 @@ client.on('interactionCreate', async (interaction) => {
             }
             
             if (currentMessage.trim().length > 0) {
-                await channel.send({ content: currentMessage.trim() });
+                const embed = new EmbedBuilder()
+                    .setColor(0x3498db)
+                    .setDescription(currentMessage.trim());
+                await channel.send({ embeds: [embed] });
             }
             
             return interaction.editReply('✅ INFO channel successfully updated with new messages!');
