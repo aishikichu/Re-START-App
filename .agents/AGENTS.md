@@ -1,0 +1,1 @@
+Whenever you add new commands, mechanics, or features to the bot, you MUST update the `docs/INFO.md` file to reflect these changes so the user can easily deploy them to the bot info channel using the `/updateinfo` command.

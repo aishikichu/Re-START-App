@@ -5,10 +5,12 @@ Meet our custom-built server bot, packed with exclusive features to make chattin
 Chatting actively in the server will automatically reward you with **Coins**!
 > 🔹 **`/daily`** - Claim your free daily coin allowance! Keep your streak going to earn more coins and a Gacha Token milestone every 7 days!
 > 🔹 **`/work`** - Send one of your avatars to flip burgers at McDonald's for 4 hours to earn coins! The more popular the avatar, the higher the payout!
+> 🔹 **`/riskywork`** - Send an avatar on a highly illegal and dangerous mission for a 50/50 chance at massive payouts! Fail and they go to jail!
 > 🔹 **`/claimwork`** - Claim your avatar's minimum wage after they survive their shift!
 > 🔹 **`/balance`** - Check your current coin balance and total chat XP.
 > 🔹 **`/leaderboard`** - Compete for the #1 spot! See the Top 10 Richest players, Highest Levels, and Top Avatar Collectors!
 > 🔹 **`/give`** - Feeling generous? Transfer your coins to another member!
+> 🔹 **`/beg`** - Down bad? Beg the server for some spare coins!
 
 ## 🎲 Casino Minigames
 Want to risk it all for a huge payout? Head to the economy channel!
