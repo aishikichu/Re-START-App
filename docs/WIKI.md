@@ -5,106 +5,168 @@
 # 🌸 Re:START Bot Wiki 🌸
 
 *Welcome to the official **Re:START Bot Wiki**! ✨*  
-*This documentation covers all the features, commands, and systems integrated into the bot, ranging from the custom profile widget to the economy and massive avatar gacha system. Grab a snack and let's dive in! 🍰*
+*This documentation covers the core game loops, underlying mechanics, and all the features integrated into the bot. Grab a snack and let's dive in! 🍰*
 
 </div>
 
 ---
 
 ## 🎀 Table of Contents
-1. [General & Profile Widget 🪪](#1-general--profile-widget-)
-2. [Fun & Games 🎲](#2-fun--games-)
-3. [Economy & Leveling 🪙](#3-economy--leveling-)
-4. [Re:BOOTH Gacha System 🎰](#4-rebooth-gacha-system-)
-5. [Passive Features ✨](#5-passive-features-)
-6. [Admin & Developer Commands 🛠️](#6-admin--developer-commands-)
+1. [Core Game Loop & Progression 🔁](#1-core-game-loop--progression-)
+2. [The Re:BOOTH Gacha System 🎰](#2-the-rebooth-gacha-system-)
+3. [Work Empire & RPG Stats 🍔](#3-work-empire--rpg-stats-)
+4. [The Economy & Shop 🪙](#4-the-economy--shop-)
+5. [Interactive Profiles & Widget 🪪](#5-interactive-profiles--widget-)
+6. [Passive Events & Drops ✨](#6-passive-events--drops-)
+7. [Complete Command Directory 📚](#7-complete-command-directory-)
 
 ---
 
-## 1. General & Profile Widget 🪪
-> Re:START features a unique **Profile Widget** that syncs custom stats directly to your Discord profile via OAuth2, as well as a beautiful customizable in-server profile card! 💖
+## 1. Core Game Loop & Progression 🔁
+Re:START turns chatting in the server into a full-fledged RPG and Collection game! Here is how the basic game loop works:
 
-* 📖 **`/help`** — Shows the in-game command guide.
-* ✏️ **`/setstat <slot 1-6> <title> <value>`** — Updates a specific slot on your profile widget. (e.g., `/setstat 1 Vibe Chill`). *(Note: The first time you use this, you must authorize the app).*
-* 👤 **`/profile [user]`** — View your (or another user's) in-server Re:START Profile card! It displays your Level, XP, Net Worth, purchased Badges, and your Avatar Showcase.
-* 🖼️ **`/setshowcase <avatars>`** — Pick up to 10 avatars from your inventory to display on your `/profile` showcase! (e.g., `/setshowcase maya_ur, kikyo_sr`).
-
----
-
-## 2. Fun & Games 🎲
-> Take a break and interact with the bot using these fun, randomized commands! 🎮
-
-* 🎱 **`/8ball <question>`** — Ask the magic 8-ball a yes/no question.
-* 🪙 **`/coinflip`** — Flips a coin (Heads or Tails).
-* 🎲 **`/roll [sides]`** — Rolls a dice. Defaults to a 6-sided die, but you can specify up to 100 sides!
-* ✨ **`/vibe`** — Get your random vibe check for the day.
-* ✂️ **`/rps <choice>`** — Play Rock, Paper, Scissors against the bot.
+1. **Chat & Earn:** Sending messages in the server earns you **Chat XP** and **Coins** passively. 
+2. **Spin the Gacha:** Use those Coins to buy **Gacha Tokens** from the Dynamic Shop and spin the `/gacha` to collect rare VRChat Avatars.
+3. **Build an Empire:** Put your collected avatars to `/work` flipping burgers to generate passive income.
+4. **Upgrade & Expand:** Use your profits to `/upgrade` your avatars' RPG stats, buy more work slots, or test your luck in the casino.
+5. **Trade & Show Off:** Trade avatars with other players, snipe deals on the `/market`, and display your rarest finds on your `/profile` showcase!
 
 ---
 
-## 3. Economy & Leveling 🪙
-> Chat to earn XP, level up, and collect coins to spend in the Re:BOOTH shop! 🛍️
+## 2. The Re:BOOTH Gacha System 🎰
+The Re:BOOTH system is a custom Trading Card Game featuring over 2,000 real VRChat Booth Avatars, fetched directly from Booth.pm!
 
-* 📈 **`/rank`** / **`/balance`** — Check your current Level, XP, and Coin balance.
-* 🎁 **`/daily`** — Claim your free daily coins (available once every 24 hours). Keep your streak for Gacha Tokens!
-* 🍔 **`/work <avatar_id>`** — Send an avatar to work for 4 hours to earn coins. Expand slots with `/buy work_slot`.
-* 💥 **`/riskywork <avatar_id>`** — Send an avatar on an illegal heist for massive payouts! Fail and they go to jail.
-* 🍟 **`/claimwork`** — Claim the wages from your working avatars. After claiming, avatars will enter a 2-hour Resting phase.
-* ✨ **`/upgrade <avatar_id> <stat>`** — Level up an avatar's RPG Stats (Speed, Endurance, Luck) up to Level 10 using Coins and Affinity.
-* 💝 **`/give <user> <amount>`** — Transfer your coins to another user. Spread the wealth!
+### 🎲 Pulling & Rarities
+Use `/gacha` to spend 1 Token and roll an avatar. Avatars come in four rarities, each with a different base Coin Value and Power level:
+* **[C] Common:** Very frequent. Base Power: ~50.
+* **[R] Rare:** Uncommon. Base Power: ~75.
+* **[SR] Super Rare:** Hard to find. Base Power: ~100.
+* **[UR] Ultra Rare:** The ultimate prize! Highest power and value.
 
-### 🎲 Casino Minigames
-Want to risk it all? (Note: Max jackpot limits apply to prevent extreme inflation!)
-* 🎰 **`/slots <bet>`** — Bet your coins on the slot machine! Win 2x your bet for matching two emojis, or 5x for a Jackpot!
-* 🃏 **`/blackjack <bet>`** — Play a game of Blackjack against the dealer!
-* 🎡 **`/roulette <bet> <color>`** — Bet your coins on Red, Black, or Green!
-* 🪙 **`/coinflip <bet> <guess>`** — The classic 50/50! Flip a coin and double your bet if you guess right!
+**The Pity System:** The bot tracks your unlucky rolls. If you go 150 rolls without hitting a [UR], your 151st roll is **guaranteed** to be a [UR]! Use `/pity` to check your progress.
 
-### 🛒 The Dynamic Shop
-* 🛍️ **`/shop`** — View the server shop! The shop has **Dynamic Pricing**, meaning the cost of items like Gacha Tokens will fluctuate every 3 hours based on a simulated market economy. It also sells Daily Cosmetics (Colors & Badges) that reset every 24 hours.
-  * 🌟 **VIP Pass:** Keep an eye out! There is a rare (~2.5%) chance for the VIP Pass to appear in the shop. Buying it grants you **Double Gacha Luck**, **2x Daily Coins**, and a **15% Slots Override Chance** for 1 hour!
-* 💳 **`/buy <item> [amount]`** — Purchase an item from the shop (e.g., `/buy token 10`, `/buy vip`, or `/buy badge`).
+### 💕 Duplicates & Affinity
+If you roll an avatar you *already own*, you don't get a duplicate card. Instead, you gain **+1 Affinity Point** (which equals 10% Affinity) with that avatar! Affinity is a crucial resource used for upgrading your avatar's RPG Stats.
+
+### 🔫 Sniping Mechanics
+When you roll the gacha, the card appears in chat. If someone else clicks the `Claim` button before you do, they **Snipe** it!
+* **If they snipe it:** The avatar itself is destroyed, but the sniper steals the avatar's Coin Value!
+* **Limits:** You can only snipe for coins **5 times per hour**, and you can only fully steal a dropped avatar **1 time per hour** to prevent abuse.
 
 ---
 
-## 4. Re:BOOTH Gacha System 🎰
-> The bot features a massive, fully integrated Gacha system where you can collect over 2,000 VRChat Booth Avatars! ✨
+## 3. Work Empire & RPG Stats 🍔
+Your avatars aren't just for show—they need to earn their keep! 
 
-* 🎲 **`/gacha`** — Spend 1 Gacha Token to roll for a random Re:BOOTH Avatar. 
-  * The pool is dynamically built and curated by the community! Avatars are fetched daily from Booth.pm and approved by Game Staff.
-  * Popular avatars come in multiple rarity variants: **[UR]**, **[SR]**, and **[R]**.
-  * 💕 **Duplicate Rolls:** If you claim an avatar you already own, you get **+1 Affinity Point** instead!
-  * 🔫 **Sniping:** If someone else clicks "Claim" on your roll before you do, they steal the drop! But they only get the Coin Value of the avatar, and the avatar itself is lost!
-* 🎒 **`/inventory [user]`** — View your (or another user's) collection of Booth Avatars, total Gacha Tokens, and combined net worth.
-* 🔍 **`/lookup <avatar_id>`** — Look up an avatar to see its image, rarity, value, and a list of all users in the server who own it! (e.g., `/lookup maya` will show all Maya variants).
-* 💰 **`/sell <avatar_id>`** — Sell an avatar you own back to the shop for its coin value.
-* 🌠 **`/wish <avatar_id>`** — Add an avatar to your wishlist (Max 5). You'll be pinged if someone rolls it!
-* 🤝 **`/trade <user> <give_id> <receive_id>`** — Propose a trade with another user. They will receive an interactive embed with buttons to Accept or Decline the trade.
+### 💼 The Work Cycle
+* **`/work`:** Send an avatar to work a 4-hour shift at McDonald's. The amount of coins they earn is based on their base Power and their Luck stat.
+* **`/claimwork`:** Once the 4 hours are up, claim their wages! 
+* **🛌 Resting Phase:** Flipping burgers is exhausting. After claiming wages, that avatar enters a **Resting Phase** for 2 Hours. They cannot be sent to work again until they wake up.
+* **Work Slots:** You start with only 1 Work Slot. You can buy more slots in the `/shop` to have multiple avatars working simultaneously. Each new slot costs progressively more!
 
----
+### 💥 Risky Business & Jail
+Feeling lucky? Use `/riskywork` to send an avatar on a highly illegal heist (4-hour global cooldown).
+* **Success:** Massive payout multiplier!
+* **Failure (Jail):** The avatar is busted! They are sent to **Jail** for a specific duration. While in jail, they cannot work, be sold, or be traded!
 
-## 5. Passive Features ✨
-> These features run automatically in the background to make the server feel alive! 🌸
-
-* 💬 **Chat XP Leveling:** You gain between 15-25 XP every time you chat! There is a 60-second cooldown between messages. Earning enough XP automatically increases your Level!
-* 🌠 **Random Economy Drops:** When members chat, there is a chance for a random "Coin Drop" or rare "Star Drop" (Gacha Token) to fall from the sky. The first person to click to claim it gets the prize!
-* ⭐ **Starboard (Hall of Fame):** If any message in the server receives **3 or more ⭐ reactions**, the bot will automatically immortalize it in the dedicated Starboard channel.
-* 🤬 **Profanity Filter Tracker:** The bot quietly listens to chat and tallies every swear word. Swear too much and the Developer might expose you on the Hall of Shame!
+### ✨ Upgrading RPG Stats
+You can use `/upgrade <avatar_id> <stat>` to level up specific stats for your avatars (Max Level 10). Upgrading costs both **Coins** and **Affinity Points**.
+1. **🏃‍♂️ Speed:** Reduces the 4-hour `/work` duration (Saves 10 minutes per level).
+2. **🛡️ Endurance:** Reduces the 2-hour Resting Phase (Saves 10 minutes per level).
+3. **🍀 Luck:** Increases your payout multiplier for normal work, and increases your success chance for `/riskywork`!
 
 ---
 
-## 6. Admin & Developer Commands 🛠️
-> These commands are reserved for server administrators or the Bot Developer. 🔒
+## 4. The Economy & Shop 🪙
+The economy is driven by the community and a simulated market.
 
-* ✅ **`/setupverify`** — Posts the server verification panel. Users click the "Verify Me!" button to receive the `Verified Homies` role.
-* 🎭 **`/setuproles`** — Posts the self-assignable Role Panel.
-* 🎨 **`/addrole <name> <color> <emoji>`** — Adds a new custom role to the Role Panel dynamically.
+### 🛒 Dynamic Pricing
+The `/shop` doesn't have fixed prices for everything! The price of Gacha Tokens and Work Slots fluctuates based on the simulated market. 
+* Prices update automatically every 3 hours. Buy low, hold, or spend wisely!
+* **🌟 VIP Pass:** Keep an eye out! There is a rare (~2.5%) chance for the VIP Pass to appear in the shop. Buying it grants you **Double Gacha Luck**, **2x Daily Coins**, and a **15% Casino Override Chance** for 1 hour!
 
-### 🛡️ Game Staff Commands
-* 📥 **`/fetchavatars`** — Scrapes the top 50 newest popular VRChat avatars from Booth.pm and sends them to the `#avatar-reviews` channel. Staff can click `[Approve]` to customize the name/rarity and inject it into the live Gacha pool!
+### 🎲 The Casino
+The bot features several casino minigames (`/slots`, `/blackjack`, `/roulette`, `/coinflip`). To prevent inflation and hyper-wealth loops, there are **Max Jackpot Limits** hardcoded into the games (usually capping out around 7,000 Coins max win).
 
-### 👑 Developer Only Commands
-*(Only accessible by the Developer ID)*
-* 🏆 **`/hallofshame`** — Fetches the top 3 swearers in the server (tracked by the profanity filter) and posts the leaderboard to the Hall of Re:START channel.
-* 💸 **`/addcoins <user> <amount>`** — Instantly adds coins to a user's balance.
-* 💣 **`/purge`** — Completely wipes the MongoDB database (Resetting all XP, Coins, and Inventories for everyone). Use with extreme caution!
+### 🏪 The Global Market
+Players set the economy! Use `/market list <avatar_id> <price>` to sell your avatars to other players. Use `/market view` to browse active listings and snipe good deals.
+
+---
+
+## 5. Interactive Profiles & Widget 🪪
+Re:START integrates heavily with the web! 
+
+* **`/widget`:** Generates a secure OAuth2 link to your personalized Web Profile.
+* **`/setstat`:** Customize the 6 text slots on your web widget to say whatever you want!
+* **`/profile`:** Displays your in-server profile card featuring your Level, Net Worth, and Avatar Showcase.
+* **`/setshowcase`:** Pick up to 10 of your favorite avatars from your inventory to display on your profile!
+
+---
+
+## 6. Passive Events & Drops ✨
+The bot runs background events to keep chat engaging:
+
+* **Chat XP:** Gain 15-25 XP per message (60-second cooldown).
+* **Random Drops:** Randomly, an interactive drop will appear in chat!
+  * **Coin Drops / Traps:** Grab free coins, or avoid the trap that steals them!
+  * **Avatar Drops:** A free avatar card falls from the sky! First to claim gets it.
+  * **Star Drops:** Crack open a star for a chance at a rare Gacha Token or a pile of coins!
+* **⭐ Starboard:** React to any funny or amazing message with a ⭐! If it gets 3 stars, it is permanently saved in the `#starboard` channel.
+* **🤬 Profanity Filter:** The bot secretly tallies every swear word. Swear too much, and the developer can expose you on the Hall of Shame!
+
+---
+
+## 7. Complete Command Directory 📚
+
+### 🪙 Economy & Casino
+* **`/balance`** (or `/rank`) — View your Coins, Level, and XP.
+* **`/daily`** — Claim your daily coins. Keep a streak for Gacha Tokens!
+* **`/shop`** — View the dynamic shop.
+* **`/buy <item> [amount]`** — Purchase items from the shop.
+* **`/give <user> <amount>`** — Transfer coins to another user.
+* **`/beg`** — Beg the server for spare change.
+* **`/leaderboard <category>`** — View the top players (Coins, Level, Avatars).
+* **`/slots <bet>`** — Spin the slot machine!
+* **`/blackjack <bet>`** — Play blackjack against the dealer.
+* **`/roulette <bet> <color>`** — Bet on Red, Black, or Green.
+* **`/coinflip <bet> <guess>`** — Flip a coin to double your bet.
+
+### 🎰 Gacha & Avatars
+* **`/gacha`** — Roll for a random Booth Avatar.
+* **`/inventory [user]`** — View your collected avatars and their statuses (Working/Resting/Jailed).
+* **`/lookup <avatar_id>`** — View an avatar's details, owners, and your personal RPG stats for it.
+* **`/pity`** — Check your progress towards a guaranteed UR avatar.
+* **`/wish <avatar_id>`** — Add an avatar to your wishlist.
+* **`/wishlist`** — View the global or personal wishlist.
+* **`/sell <avatar_id>`** — Sell an avatar back to the system for its base coin value.
+* **`/trade <user> <give> <receive>`** — Propose a 1-for-1 trade with another user.
+* **`/market view`** — Browse player-listed avatars for sale.
+* **`/market list <id> <price>`** — List your avatar on the global market.
+* **`/market buy <listing_id>`** — Buy an avatar from the market.
+* **`/market cancel <listing_id>`** — Remove your market listing.
+
+### 🍔 Work Empire
+* **`/work <avatar_id>`** — Send an avatar to flip burgers for 4 hours.
+* **`/claimwork`** — Claim wages from finished shifts (triggers Resting phase).
+* **`/riskywork <avatar_id>`** — Attempt an illegal heist for huge payouts.
+* **`/upgrade <avatar_id> <stat>`** — Level up an avatar's Speed, Endurance, or Luck.
+
+### 🪪 Profile & Fun
+* **`/profile [user]`** — View a user's server profile and showcase.
+* **`/setshowcase <avatars>`** — Set the avatars displayed on your profile.
+* **`/widget`** — Get the link to your interactive web widget.
+* **`/setstat <slot> <title> <value>`** — Customize your web widget text slots.
+* **`/8ball <question>`** — Ask the magic 8-ball.
+* **`/roll [sides]`** — Roll a dice.
+* **`/vibe`** — Get a random vibe check.
+* **`/rps <choice>`** — Play Rock, Paper, Scissors against the bot.
+* **`/help`** — View the in-game command guide.
+
+### 🛠️ Admin / Developer
+* **`/setupverify`** — Post the verification button.
+* **`/setuproles`** — Post the self-assignable roles panel.
+* **`/addrole <name> <color> <emoji>`** — Add a new assignable role dynamically.
+* **`/updateinfo`** — Pulls this wiki/info data to update the Discord #info channel.
+* **`/fetchavatars`** — Scrape newest avatars from Booth.pm for staff review.
+* **`/hallofshame`** — Expose the top swearers.
+* **`/addcoins`, `/addgachatoken`, `/purge`** — Developer overrides.
