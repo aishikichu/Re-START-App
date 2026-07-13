@@ -1191,10 +1191,48 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'gachapoollist') {
         await interaction.deferReply({ ephemeral: true });
         const items = gachaPool;
-        const text = items.map((g, i) => `${i + 1}. [${g.id}] ${g.name} (${g.rarity}) - Val: ${g.value}`).join('\n');
-        const buffer = Buffer.from(text, 'utf-8');
-        const attachment = new AttachmentBuilder(buffer, { name: 'gachapoollist.txt' });
-        return interaction.editReply({ content: `📜 Here is the list of ${items.length} avatars in the Gacha Pool:`, files: [attachment] });
+        if (items.length === 0) return interaction.editReply('❌ The Gacha Pool is completely empty!');
+        
+        let page = 0;
+        const pageSize = 15;
+        const totalPages = Math.ceil(items.length / pageSize);
+
+        const generateEmbed = (pageNum) => {
+            const start = pageNum * pageSize;
+            const currentItems = items.slice(start, start + pageSize);
+            const desc = currentItems.map((g, i) => `**${start + i + 1}.** [${g.rarity}] ${g.name} - ID: \`${g.id}\``).join('\n');
+            return new EmbedBuilder()
+                .setColor(0x9b59b6)
+                .setTitle(`📜 Gacha Pool Avatars (Page ${pageNum + 1}/${totalPages})`)
+                .setDescription(desc)
+                .setFooter({ text: `Total Avatars: ${items.length}` });
+        };
+
+        const generateButtons = (pageNum) => {
+            const row = new ActionRowBuilder();
+            row.addComponents(
+                new ButtonBuilder().setCustomId('gacha_prev').setLabel('◀ Prev').setStyle(ButtonStyle.Primary).setDisabled(pageNum === 0),
+                new ButtonBuilder().setCustomId('gacha_next').setLabel('Next ▶').setStyle(ButtonStyle.Primary).setDisabled(pageNum === totalPages - 1)
+            );
+            return row;
+        };
+
+        const msg = await interaction.editReply({ embeds: [generateEmbed(page)], components: [generateButtons(page)] });
+
+        const collector = msg.createMessageComponentCollector({ time: 120000 });
+        collector.on('collect', async i => {
+            if (i.user.id !== interaction.user.id) return i.reply({ content: 'Not for you!', flags: 64 });
+            if (i.customId === 'gacha_prev' && page > 0) page--;
+            if (i.customId === 'gacha_next' && page < totalPages - 1) page++;
+            
+            await i.update({ embeds: [generateEmbed(page)], components: [generateButtons(page)] });
+        });
+        
+        collector.on('end', () => {
+            interaction.editReply({ components: [] }).catch(console.error);
+        });
+        
+        return;
     }
 
     if (commandName === 'submitavatar') {
