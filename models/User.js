@@ -22,7 +22,12 @@ const userSchema = new mongoose.Schema({
     badLuckExpiresAt: { type: Date, default: null }, // Bad Luck expiration
     profanityCount: { type: Number, default: 0 }, // Tracker for the Hall of Re:START swearing leaderboard
     pityCounter: { type: Number, default: 0 }, // Tracks gacha rolls since last UR
-    dailyStreak: { type: Number, default: 0 } // Tracks consecutive daily logins
+    dailyStreak: { type: Number, default: 0 }, // Tracks consecutive daily logins
+    lastCardDropClaimDate: { type: Date, default: null }, // Random drop 1/hr limit
+    coinSnipeCount: { type: Number, default: 0 }, // Random drop 5/hr limit counter
+    lastCoinSnipeReset: { type: Date, default: null }, // When the 5/hr limit resets
+    workEndTime: { type: Date, default: null }, // Timestamp when avatar finishes working
+    workingAvatar: { type: String, default: null } // ID of the avatar currently working
 });
 
 module.exports = mongoose.model('User', userSchema);

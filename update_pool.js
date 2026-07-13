@@ -109,12 +109,18 @@ async function fetchImage(base) {
     return imageUrl;
 }
 
+const mongoose = require('mongoose');
+const GachaItem = require('./models/GachaItem');
+require('dotenv').config();
+
 async function rebuildPool() {
     let pool = [];
 
     // 1. Process Popular Avatars (Variants: UR, SR, R)
+    // Popular bases get a higher base stat of 100
     for (const base of popularBases) {
         let imageUrl = await fetchImage(base);
+        const baseStat = 100;
         
         // Add UR Variant
         pool.push({
@@ -122,7 +128,9 @@ async function rebuildPool() {
             name: base.name,
             rarity: 'UR',
             value: 2500,
-            image: imageUrl
+            power: baseStat * 5.0, // 500 Power
+            image: imageUrl,
+            creator: 'Re:BOOTH'
         });
 
         // Add SR Variant
@@ -131,7 +139,9 @@ async function rebuildPool() {
             name: base.name,
             rarity: 'SR',
             value: 1200,
-            image: imageUrl
+            power: baseStat * 3.0, // 300 Power
+            image: imageUrl,
+            creator: 'Re:BOOTH'
         });
 
         // Add R Variant
@@ -140,25 +150,49 @@ async function rebuildPool() {
             name: base.name,
             rarity: 'R',
             value: 600,
-            image: imageUrl
+            power: baseStat * 1.5, // 150 Power
+            image: imageUrl,
+            creator: 'Re:BOOTH'
         });
     }
 
     // 2. Process Common Avatars (Variants: C)
+    // Common bases get a base stat of 50
     for (const base of commonBases) {
         let imageUrl = await fetchImage(base);
+        const baseStat = 50;
         
         pool.push({
             id: base.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_c',
             name: base.name,
             rarity: 'C',
             value: 100,
-            image: imageUrl
+            power: baseStat * 1.0, // 50 Power
+            image: imageUrl,
+            creator: 'Re:BOOTH'
         });
     }
 
     fs.writeFileSync('gachaPool.json', JSON.stringify(pool, null, 4));
     console.log(`Updated gachaPool.json successfully. Total avatars: ${pool.length}`);
+
+    // Sync with MongoDB
+    try {
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log("Connected to MongoDB for syncing...");
+        
+        // Clear existing GachaItems
+        await GachaItem.deleteMany({});
+        console.log("Cleared old Gacha Pool from DB.");
+        
+        // Insert new ones
+        await GachaItem.insertMany(pool);
+        console.log(`Successfully inserted ${pool.length} items into MongoDB!`);
+        
+        mongoose.connection.close();
+    } catch (e) {
+        console.error("MongoDB Sync Error:", e);
+    }
 }
 
 rebuildPool();

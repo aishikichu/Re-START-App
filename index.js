@@ -47,6 +47,7 @@ const WIDGET_CHANNEL_ID = '1525308184389222400';
 const STARBOARD_CHANNEL_ID = '1525488417864028362';
 const REBOOTH_CHANNEL_ID = '1525666791974764684';
 const ECONOMY_CHANNEL_ID = '1525505480808730694';
+const WORK_CHANNEL_ID = '1526232094529814752';
 const SHOP_CHANNEL_ID = '1525685955212869804';
 const TRADING_CHANNEL_ID = '1525718530115375185';
 const INFO_CHANNEL_ID = '1525718674890166454';
@@ -306,6 +307,17 @@ const slashCommands = [
         .addStringOption(opt => 
             opt.setName('avatar_id').setDescription('The ID of the avatar to wish for').setRequired(true)),
     new SlashCommandBuilder()
+        .setName('wishlist')
+        .setDescription('View your current wishlist'),
+    new SlashCommandBuilder()
+        .setName('work')
+        .setDescription('Send an avatar to work for coins based on their power')
+        .addStringOption(opt => 
+            opt.setName('avatar_id').setDescription('The ID of the avatar to send to work').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('claimwork')
+        .setDescription('Claim coins from your completed work'),
+    new SlashCommandBuilder()
         .setName('trade')
         .setDescription('Propose a Re:BOOTH avatar trade with another user!')
         .addUserOption(opt => 
@@ -467,6 +479,32 @@ client.once('ready', async () => {
             console.error('Daily cron error:', err);
         }
     });
+
+    // Weekly Gacha Pool Rebuild (Sundays at Midnight UTC)
+    cron.schedule('0 0 * * 0', async () => {
+        try {
+            console.log('⏰ Running weekly gacha pool rebuild...');
+            const { exec } = require('child_process');
+            exec('node update_pool.js', async (err, stdout, stderr) => {
+                if (err) {
+                    console.error("Error running update_pool.js:", err);
+                    return;
+                }
+                console.log("Weekly pool rebuild finished:\n" + stdout);
+                
+                // Reload gachaPool after building
+                try {
+                    const items = await GachaItem.find({});
+                    gachaPool = items;
+                    console.log(`✅ Reloaded ${gachaPool.length} avatars into the Gacha Pool from DB.`);
+                } catch (e) {
+                    console.error("Error reloading pool:", e);
+                }
+            });
+        } catch (err) {
+            console.error('Weekly cron error:', err);
+        }
+    });
     console.log(`✨ Re:START bot is online as ${client.user.tag}!`);
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -584,13 +622,17 @@ client.once('ready', async () => {
     }, 60000);
 });
 
-// ─── Message Handler (Random Coin Drops) ──────────────────────────────────────
+// ─── Message Handler (Random Drops) ──────────────────────────────────────
 let messageCountSinceDrop = 0;
 let nextDropThreshold = Math.floor(Math.random() * 15) + 15; // 15 to 30
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
+let messageCountSinceCardDrop = 0;
+let nextCardDropThreshold = Math.floor(Math.random() * 50) + 50; // 50 to 100
 
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    // Random Coin Drop (Economy Channel Only)
     if (message.channelId === ECONOMY_CHANNEL_ID) {
         messageCountSinceDrop++;
         
@@ -615,6 +657,43 @@ client.on('messageCreate', async (message) => {
             const row = new ActionRowBuilder().addComponents(claimButton);
 
             await message.channel.send({ embeds: [embed], components: [row] });
+        }
+    }
+
+    // Random Card Drop (Any channel)
+    messageCountSinceCardDrop++;
+    if (messageCountSinceCardDrop >= nextCardDropThreshold) {
+        messageCountSinceCardDrop = 0;
+        nextCardDropThreshold = Math.floor(Math.random() * 50) + 50; // 50 to 100
+
+        // Determine rarity (C: 60%, R: 25%, SR: 14%, UR: 1%)
+        const roll = Math.random() * 100;
+        let rarityTarget = 'C';
+        if (roll <= 1) rarityTarget = 'UR';
+        else if (roll <= 15) rarityTarget = 'SR';
+        else if (roll <= 40) rarityTarget = 'R';
+
+        if (gachaPool.length > 0) {
+            const possibleDrops = gachaPool.filter(a => a.rarity === rarityTarget);
+            if (possibleDrops.length > 0) {
+                const drop = possibleDrops[Math.floor(Math.random() * possibleDrops.length)];
+                
+                const embed = new EmbedBuilder()
+                    .setColor(rarityTarget === 'UR' ? 0xff00ff : rarityTarget === 'SR' ? 0xffaa00 : rarityTarget === 'R' ? 0x00aaff : 0xaaaaaa)
+                    .setTitle(`✨ A Wild Avatar Appeared!`)
+                    .setDescription(`A mysterious card just dropped in chat!\n\n**${drop.name}** [${drop.rarity}]\nPower: ${drop.power || 50}\n\nClick the button below to snipe it!`)
+                    .setImage(drop.image)
+                    .setFooter({ text: 'Full Claim limit: 1/hr | Snipe for Coins limit: 5/hr' });
+
+                const claimButton = new ButtonBuilder()
+                    .setCustomId(`grab_card_${drop.id}`)
+                    .setLabel('Grab Card!')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('✋');
+
+                const row = new ActionRowBuilder().addComponents(claimButton);
+                await message.channel.send({ embeds: [embed], components: [row] });
+            }
         }
     }
 });
@@ -830,6 +909,95 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Error claiming coins!', flags: 64 });
+        }
+    }
+
+    // ── Button: Grab Card ─────────────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('grab_card_')) {
+        const cardId = interaction.customId.replace('grab_card_', '');
+        const claimerId = interaction.user.id;
+
+        try {
+            if (activeClaimLocks.has(interaction.message.id)) {
+                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+            }
+            activeClaimLocks.add(interaction.message.id);
+
+            if (interaction.message.components[0].components[0].disabled) {
+                activeClaimLocks.delete(interaction.message.id);
+                return interaction.reply({ content: '❌ Too late! Someone already grabbed this card.', flags: 64 });
+            }
+
+            let userRecord = await User.findOne({ userId: claimerId });
+            if (!userRecord) userRecord = new User({ userId: claimerId });
+
+            const now = new Date();
+            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+            const cardData = gachaPool.find(c => c.id === cardId) || { name: 'Card', value: 100 };
+
+            if (!userRecord.inventory.includes(cardId)) {
+                // Full Claim
+                if (userRecord.lastCardDropClaimDate && userRecord.lastCardDropClaimDate > oneHourAgo) {
+                    activeClaimLocks.delete(interaction.message.id);
+                    return interaction.reply({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                }
+                userRecord.inventory.push(cardId);
+                userRecord.lastCardDropClaimDate = now;
+                await userRecord.save();
+
+                const disabledButton = new ButtonBuilder()
+                    .setCustomId('claimed_already')
+                    .setLabel(`Claimed by ${interaction.user.username}`)
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true);
+
+                const row = new ActionRowBuilder().addComponents(disabledButton);
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x95a5a6)
+                    .setFooter({ text: `✨ Card claimed by ${interaction.user.username}` });
+
+                await interaction.update({ embeds: [embed], components: [row] });
+                activeClaimLocks.delete(interaction.message.id);
+                return;
+            } else {
+                // Coin Snipe
+                if (userRecord.lastCoinSnipeReset && userRecord.lastCoinSnipeReset < oneHourAgo) {
+                    userRecord.coinSnipeCount = 0;
+                    userRecord.lastCoinSnipeReset = now;
+                }
+                if (userRecord.coinSnipeCount >= 5) {
+                    activeClaimLocks.delete(interaction.message.id);
+                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                }
+
+                if (userRecord.coinSnipeCount === 0 || !userRecord.lastCoinSnipeReset) {
+                    userRecord.lastCoinSnipeReset = now;
+                }
+                
+                userRecord.coinSnipeCount += 1;
+                const snipeCoins = Math.floor(cardData.value / 2); // get half value in coins
+                userRecord.coins += snipeCoins;
+                await userRecord.save();
+
+                const disabledButton = new ButtonBuilder()
+                    .setCustomId('claimed_already')
+                    .setLabel(`Sniped by ${interaction.user.username}`)
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true);
+
+                const row = new ActionRowBuilder().addComponents(disabledButton);
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x95a5a6)
+                    .setFooter({ text: `🪙 Sniped by ${interaction.user.username} for ${snipeCoins} Coins!` });
+
+                await interaction.update({ embeds: [embed], components: [row] });
+                activeClaimLocks.delete(interaction.message.id);
+                return;
+            }
+        } catch (err) {
+            console.error(err);
+            activeClaimLocks.delete(interaction.message.id);
+            return interaction.reply({ content: '❌ Error claiming card!', flags: 64 });
         }
     }
 
@@ -2431,6 +2599,123 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error updating wishlist!');
+        }
+    }
+
+    // ── /wishlist ─────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'wishlist') {
+        await interaction.deferReply();
+        try {
+            const userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.wishlist || userRecord.wishlist.length === 0) {
+                return interaction.editReply('📭 Your wishlist is empty! Use `/wish [avatar_id]` to add some.');
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0x9b59b6)
+                .setTitle(`🌟 ${interaction.user.username}'s Wishlist`);
+
+            let desc = '';
+            userRecord.wishlist.forEach(id => {
+                const model = gachaPool.find(m => m.id === id);
+                if (model) {
+                    desc += `• **${model.name}** [${model.rarity}] (ID: \`${model.id}\`)\n`;
+                } else {
+                    desc += `• *Unknown Avatar* (ID: \`${id}\`)\n`;
+                }
+            });
+            embed.setDescription(desc);
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error viewing wishlist!');
+        }
+    }
+
+    // ── /work ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'work') {
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only flip burgers in <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.inventory.includes(avatarId)) {
+                return interaction.editReply(`❌ You don't own an avatar with ID \`${avatarId}\`! Are you hallucinating from the fry grease?`);
+            }
+
+            if (userRecord.workEndTime && userRecord.workEndTime > new Date()) {
+                return interaction.editReply(`❌ You already have an avatar slaving away! They will be done <t:${Math.floor(userRecord.workEndTime.getTime()/1000)}:R>. Use \`/claimwork\` when they survive their shift.`);
+            }
+
+            if (userRecord.workEndTime && userRecord.workEndTime <= new Date() && userRecord.workingAvatar) {
+                return interaction.editReply(`⚠️ Your previous avatar survived their shift! Please use \`/claimwork\` before sending another one to the grease pits.`);
+            }
+
+            const model = gachaPool.find(m => m.id === avatarId);
+            if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
+
+            // Set work for 4 hours
+            const workDurationHours = 4;
+            const endTime = new Date(Date.now() + workDurationHours * 60 * 60 * 1000);
+            
+            userRecord.workingAvatar = avatarId;
+            userRecord.workEndTime = endTime;
+            await userRecord.save();
+
+            const embed = new EmbedBuilder()
+                .setColor(0x3498db)
+                .setTitle('🍔 Wagie Wagie Get in Cagie!')
+                .setDescription(`You sent **${model.name}** [${model.rarity}] to flip burgers at McDonald's!\n\nThey will finish their miserable shift <t:${Math.floor(endTime.getTime()/1000)}:R>.\n\nUse \`/claimwork\` when they are finished to collect their minimum wage!`)
+                .setThumbnail(model.image);
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error sending them to the wagie cagie!');
+        }
+    }
+
+    // ── /claimwork ────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'claimwork') {
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only claim your minimum wage in <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.workingAvatar) {
+                return interaction.editReply(`❌ You don't have any avatar currently flipping burgers! Use \`/work [avatar_id]\` to send one to the grease pits.`);
+            }
+
+            if (userRecord.workEndTime > new Date()) {
+                return interaction.editReply(`⏳ Your avatar is still suffering through their shift! They will be done <t:${Math.floor(userRecord.workEndTime.getTime()/1000)}:R>. Tell them to get back to the fryer!`);
+            }
+
+            const model = gachaPool.find(m => m.id === userRecord.workingAvatar);
+            const power = model ? (model.power || 50) : 50;
+            
+            // Calculate reward: power * random multiplier (e.g., 1x to 2x)
+            const multiplier = 1 + Math.random();
+            const rewardCoins = Math.floor(power * multiplier);
+
+            userRecord.coins += rewardCoins;
+            userRecord.workingAvatar = null;
+            userRecord.workEndTime = null;
+            await userRecord.save();
+
+            const embed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle('🍟 Minimum Wage Acquired!')
+                .setDescription(`Your avatar ${model ? `**${model.name}**` : ''} finished flipping burgers, survived the Karen encounters, and earned a measly **🪙 ${rewardCoins} Coins**!\n\nNew Balance: **🪙 ${userRecord.coins}**\n\nNow get back to the fryer wagie!`);
+
+            if (model) embed.setThumbnail(model.image);
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error claiming your burger-flipping wage!');
         }
     }
 
