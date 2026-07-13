@@ -33,7 +33,13 @@ The server features a custom Avatar Trading Card game! Roll the Gacha, claim you
 Every member gets a live, interactive web widget!
 > 🔹 **`/widget`** - Generates a special link to your personalized profile widget. 
 > 🔹 **`/setstat`** - Customize the custom tags and statuses that appear on it!
-> 🔹 **`/profile`** - View your in-server profile, level, net worth, and widget!
+> 🔹 **`/profile`** - View your in-server profile! It now displays your Level, Balance, Net Worth, Gacha Tokens, and active Cooldowns!
+
+## 🎁 Random Chat Drops
+While chatting, keep an eye out for random drops appearing in the chat!
+> 🔹 **Avatar Drops** - Quickly click `Grab Card!` to claim a free avatar! **(Limit: 1 Full Claim per hour)**. If you already own it, you will snipe it for coins instead **(Limit: 5 Coin Snipes per hour)**.
+> 🔹 **Star Drops** - Click to crack open a star! You might find Coins, get exploded on, or even find a rare **Gacha Token**!
+> 🔹 **Coin/Trap Drops** - Grab free coins or avoid getting trapped!
 
 ## ⭐ The Starboard
 See a hilarious or amazing message? React to it with a ⭐! If a message gets enough star reactions, the bot will immortalize it in the **#starboard** channel for everyone to see!
