@@ -2994,11 +2994,29 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`❌ They are already slaving away at McDonald's! Let them finish their shift before forcing them into a heist!`);
             }
 
+            // Global riskywork timer (4 hours)
+            if (userRecord.lastRiskyWorkTime) {
+                const cooldownEnd = new Date(userRecord.lastRiskyWorkTime.getTime() + 4 * 60 * 60 * 1000);
+                if (cooldownEnd > new Date()) {
+                    return interaction.editReply(`⏳ The heat is too high! You need to lay low before attempting another heist. You can do risky work again <t:${Math.floor(cooldownEnd.getTime()/1000)}:R>.`);
+                }
+            }
+
             const model = gachaPool.find(m => m.id === avatarId);
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
 
             const power = model ? (model.power || 50) : 50;
-            const win = Math.random() < 0.4; // 40% chance
+            
+            let winChance = 0.10;
+            if (model.rarity === 'UR') winChance = 0.10;
+            else if (model.rarity === 'SR') winChance = 0.12;
+            else if (model.rarity === 'R') winChance = 0.14;
+            else if (model.rarity === 'C') winChance = 0.16;
+
+            const win = Math.random() < winChance;
+
+            // Set the cooldown timer
+            userRecord.lastRiskyWorkTime = new Date();
 
             const jobs = [
                 "robbing a bank",
