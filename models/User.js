@@ -27,7 +27,8 @@ const userSchema = new mongoose.Schema({
     coinSnipeCount: { type: Number, default: 0 }, // Random drop 5/hr limit counter
     lastCoinSnipeReset: { type: Date, default: null }, // When the 5/hr limit resets
     workEndTime: { type: Date, default: null }, // Timestamp when avatar finishes working
-    workingAvatar: { type: String, default: null } // ID of the avatar currently working
+    workingAvatar: { type: String, default: null }, // ID of the avatar currently working
+    avatarJailTime: { type: Map, of: Date, default: {} } // Map of avatar ID to jail release Date
 });
 
 module.exports = mongoose.model('User', userSchema);

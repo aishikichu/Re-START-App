@@ -35,7 +35,7 @@ let gachaPool = [];
 // Wait for MongoDB to connect before loading the pool
 mongoose.connection.once('open', async () => {
     try {
-        const items = await GachaItem.find({});
+        const items = await GachaItem.find({}).lean();
         gachaPool = items;
         console.log(`✅ Loaded ${gachaPool.length} avatars from MongoDB into the Gacha Pool.`);
     } catch (err) {
@@ -437,6 +437,13 @@ const slashCommands = [
     new SlashCommandBuilder()
         .setName('updateinfo')
         .setDescription('[DEV] Update the INFO channel message'),
+    new SlashCommandBuilder()
+        .setName('riskywork')
+        .setDescription('Send your avatar on a highly illegal and dangerous mission for a chance at massive payouts!')
+        .addStringOption(opt => opt.setName('avatar_id').setDescription('ID of the avatar to send').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('beg')
+        .setDescription('Beg the server for some spare coins'),
 
 ].map(cmd => cmd.toJSON());
 
@@ -497,7 +504,7 @@ client.once('ready', async () => {
                 
                 // Reload gachaPool after building
                 try {
-                    const items = await GachaItem.find({});
+                    const items = await GachaItem.find({}).lean();
                     gachaPool = items;
                     console.log(`✅ Reloaded ${gachaPool.length} avatars into the Gacha Pool from DB.`);
                 } catch (e) {
@@ -822,8 +829,8 @@ client.on('interactionCreate', async (interaction) => {
             // Save to MongoDB
             await GachaItem.insertMany(newItems);
             
-            // Add to in-memory pool
-            gachaPool.push(...newItems);
+            // Add to in-memory pool (convert Mongoose docs to lean objects)
+            gachaPool.push(...newItems.map(item => item.toObject()));
             
             // 4. Reward submitter
             let submitterId = null;
@@ -1314,6 +1321,69 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.reply({ content: '❌ Something went wrong assigning the role. Tell an admin to check my permissions!', flags: 64 });
+        }
+    }
+
+    // ── Button: Give Beggar Coins ─────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('beg_give_')) {
+        const beggarId = interaction.customId.replace('beg_give_', '');
+        
+        if (interaction.user.id === beggarId) {
+            return interaction.reply({ content: '❌ You cannot give coins to yourself!', flags: 64 });
+        }
+        
+        // Show modal
+        const modal = new ModalBuilder()
+            .setCustomId(`modal_beg_give_${beggarId}`)
+            .setTitle('Give Coins to Beggar');
+            
+        const amountInput = new TextInputBuilder()
+            .setCustomId('amount')
+            .setLabel('Amount to give (Coins)')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+            
+        const row = new ActionRowBuilder().addComponents(amountInput);
+        modal.addComponents(row);
+        
+        await interaction.showModal(modal);
+        return;
+    }
+
+    // ── Modal: Give Beggar Coins ──────────────────────────────────────────────
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_beg_give_')) {
+        const beggarId = interaction.customId.replace('modal_beg_give_', '');
+        const amountStr = interaction.fields.getTextInputValue('amount');
+        const amount = parseInt(amountStr);
+        
+        if (isNaN(amount) || amount <= 0) {
+            return interaction.reply({ content: '❌ Invalid amount. Must be a positive number.', flags: 64 });
+        }
+        
+        await interaction.deferReply();
+        
+        try {
+            let giverRecord = await User.findOne({ userId: interaction.user.id });
+            let beggarRecord = await User.findOne({ userId: beggarId });
+            
+            if (!giverRecord || giverRecord.coins < amount) {
+                return interaction.editReply(`❌ You don't have **🪙 ${amount} Coins** to give! You only have **🪙 ${giverRecord ? giverRecord.coins : 0}**.`);
+            }
+            
+            if (!beggarRecord) {
+                beggarRecord = new User({ userId: beggarId });
+            }
+            
+            giverRecord.coins -= amount;
+            beggarRecord.coins += amount;
+            
+            await giverRecord.save();
+            await beggarRecord.save();
+            
+            return interaction.editReply(`💸 **${interaction.user.username}** generously gave **🪙 ${amount} Coins** to <@${beggarId}>!`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error transferring coins!');
         }
     }
 
@@ -2449,7 +2519,10 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /inventory ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'inventory') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID];
+        if (!allowedChannels.includes(interaction.channelId)) {
+            return interaction.reply({ content: `⚠️ Please use inventory commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, or <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
+        }
         
         const targetUser = interaction.options.getUser('user') || interaction.user;
         await interaction.deferReply();
@@ -2693,6 +2766,14 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`❌ You don't own an avatar with ID \`${avatarId}\`! Are you hallucinating from the fry grease?`);
             }
 
+            // Check if avatar is in jail
+            if (userRecord.avatarJailTime && userRecord.avatarJailTime.get(avatarId)) {
+                const jailReleaseDate = userRecord.avatarJailTime.get(avatarId);
+                if (jailReleaseDate > new Date()) {
+                    return interaction.editReply(`🚓 **Busted!** This avatar is currently in jail serving time for a botched risky job! They will be released <t:${Math.floor(jailReleaseDate.getTime()/1000)}:R>.`);
+                }
+            }
+
             if (userRecord.workEndTime && userRecord.workEndTime > new Date()) {
                 return interaction.editReply(`❌ You already have an avatar slaving away! They will be done <t:${Math.floor(userRecord.workEndTime.getTime()/1000)}:R>. Use \`/claimwork\` when they survive their shift.`);
             }
@@ -2765,6 +2846,112 @@ client.on('interactionCreate', async (interaction) => {
             console.error(err);
             return interaction.editReply('❌ Error claiming your burger-flipping wage!');
         }
+    }
+
+    // ── /riskywork ────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'riskywork') {
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take your illegal business to the back alley! (Please use <#${WORK_CHANNEL_ID}>)`, flags: 64 });
+        
+        await interaction.deferReply();
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.inventory.includes(avatarId)) {
+                return interaction.editReply(`❌ You don't own an avatar with ID \`${avatarId}\`!`);
+            }
+
+            // Check if avatar is in jail
+            if (userRecord.avatarJailTime && userRecord.avatarJailTime.get(avatarId)) {
+                const jailReleaseDate = userRecord.avatarJailTime.get(avatarId);
+                if (jailReleaseDate > new Date()) {
+                    return interaction.editReply(`🚓 **Busted!** This avatar is currently in jail serving time for a botched risky job! They will be released <t:${Math.floor(jailReleaseDate.getTime()/1000)}:R>. You can't send them out again!`);
+                }
+            }
+
+            if (userRecord.workingAvatar === avatarId && userRecord.workEndTime > new Date()) {
+                return interaction.editReply(`❌ They are already slaving away at McDonald's! Let them finish their shift before forcing them into a heist!`);
+            }
+
+            const model = gachaPool.find(m => m.id === avatarId);
+            if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
+
+            const power = model ? (model.power || 50) : 50;
+            const win = Math.random() < 0.5; // 50/50 chance
+            
+            const jobs = [
+                "robbing a bank",
+                "selling highly illegal virtual weed",
+                "stealing Booth assets",
+                "running an underground casino",
+                "smuggling waifu pillows across the border",
+                "hosting an illegal rave",
+                "doing shady VRchat deals in a back alley",
+                "hacking the Re:START mainframe"
+            ];
+            const job = jobs[Math.floor(Math.random() * jobs.length)];
+
+            if (win) {
+                // Success! (Massive payout, e.g. 5x to 8x power)
+                const multiplier = 5 + (Math.random() * 3);
+                const rewardCoins = Math.floor(power * multiplier);
+                userRecord.coins += rewardCoins;
+                await userRecord.save();
+
+                const embed = new EmbedBuilder()
+                    .setColor(0x2ecc71)
+                    .setTitle('💸 The Heist was a Success!')
+                    .setDescription(`**${model.name}** successfully pulled off **${job}** without getting caught by the cops!\n\nThey raked in a massive **🪙 ${rewardCoins} Coins**!\n\nNew Balance: **🪙 ${userRecord.coins}**`)
+                    .setThumbnail(model.image);
+
+                return interaction.editReply({ embeds: [embed] });
+            } else {
+                // Fail! (Flat fine and 3-day jail time)
+                const fine = 500;
+                userRecord.coins = Math.max(0, userRecord.coins - fine); // Don't let it go below 0
+                
+                const jailDays = 3;
+                const releaseDate = new Date(Date.now() + jailDays * 24 * 60 * 60 * 1000);
+                
+                if (!userRecord.avatarJailTime) userRecord.avatarJailTime = new Map();
+                userRecord.avatarJailTime.set(avatarId, releaseDate);
+                await userRecord.save();
+
+                const embed = new EmbedBuilder()
+                    .setColor(0xe74c3c)
+                    .setTitle('🚓 WEE WOO WEE WOO! BUSTED!')
+                    .setDescription(`**${model.name}** got caught **${job}**!\n\nThe police raided the operation! You were fined **🪙 ${fine} Coins** and **${model.name}** was thrown in JAIL for ${jailDays} days!\n\nThey cannot work or do risky jobs until <t:${Math.floor(releaseDate.getTime()/1000)}:R>.\n\nNew Balance: **🪙 ${userRecord.coins}**`)
+                    .setThumbnail(model.image);
+
+                return interaction.editReply({ embeds: [embed] });
+            }
+
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error trying to do a risky job!');
+        }
+    }
+
+    // ── /beg ──────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'beg') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID && interaction.channelId !== WORK_CHANNEL_ID) {
+            return interaction.reply({ content: `⚠️ Take your begging to the <#${ECONOMY_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        }
+        
+        await interaction.deferReply();
+        const embed = new EmbedBuilder()
+            .setColor(0xf1c40f)
+            .setTitle('🥺 Spare Change?')
+            .setDescription(`**${interaction.user.username}** is down bad and begging for coins!\n\nDoes any generous soul have some spare coins to give? Click the button below!`);
+            
+        const giveBtn = new ButtonBuilder()
+            .setCustomId(`beg_give_${interaction.user.id}`)
+            .setLabel('Give Coins')
+            .setEmoji('💸')
+            .setStyle(ButtonStyle.Success);
+            
+        const row = new ActionRowBuilder().addComponents(giveBtn);
+        return interaction.editReply({ embeds: [embed], components: [row] });
     }
 
     // ── /market ───────────────────────────────────────────────────────────────
