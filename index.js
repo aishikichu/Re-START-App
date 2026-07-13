@@ -28,6 +28,7 @@ const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const Starboard = require('./models/Starboard'); // Import Starboard schema
 const GachaItem = require('./models/GachaItem'); // Import new MongoDB Gacha schema
+const MarketListing = require('./models/MarketListing'); // Import MarketListing schema
 const profanityFilter = new Filter();
 let gachaPool = [];
 
@@ -185,7 +186,24 @@ const slashCommands = [
 
     new SlashCommandBuilder()
         .setName('coinflip')
-        .setDescription('🪙 Flip a coin — heads or tails'),
+        .setDescription('🪙 Flip a coin and bet some coins!')
+        .addStringOption(opt => opt.setName('choice').setDescription('Heads or tails').setRequired(false).addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' }))
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount of coins to bet').setRequired(false).setMinValue(1)),
+
+    new SlashCommandBuilder()
+        .setName('blackjack')
+        .setDescription('🃏 Play a game of Blackjack against the bot!')
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1)),
+
+    new SlashCommandBuilder()
+        .setName('roulette')
+        .setDescription('🎡 Bet on the roulette wheel!')
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1))
+        .addStringOption(opt => opt.setName('color').setDescription('Color to bet on').setRequired(true).addChoices(
+            { name: 'Red (2x)', value: 'red' },
+            { name: 'Black (2x)', value: 'black' },
+            { name: 'Green (14x)', value: 'green' }
+        )),
 
     new SlashCommandBuilder()
         .setName('roll')
@@ -379,9 +397,31 @@ const slashCommands = [
         .setDescription('[STAFF] Fetch random avatars from Booth for review')
         .addIntegerOption(opt => opt.setName('amount').setDescription('Number of avatars (max 10)').setRequired(true)),
     new SlashCommandBuilder()
+        .setName('market')
+        .setDescription('Global Avatar Marketplace')
+        .addSubcommand(sub => sub.setName('view').setDescription('View avatars for sale in the market'))
+        .addSubcommand(sub => sub.setName('list').setDescription('List one of your avatars for sale')
+            .addStringOption(opt => opt.setName('avatar_id').setDescription('ID of the avatar to list').setRequired(true))
+            .addIntegerOption(opt => opt.setName('price').setDescription('Price in coins').setRequired(true).setMinValue(1)))
+        .addSubcommand(sub => sub.setName('buy').setDescription('Buy an avatar from the market')
+            .addStringOption(opt => opt.setName('listing_id').setDescription('The Listing ID of the market item').setRequired(true)))
+        .addSubcommand(sub => sub.setName('cancel').setDescription('Cancel one of your market listings')
+            .addStringOption(opt => opt.setName('listing_id').setDescription('The Listing ID to cancel').setRequired(true))),
+    new SlashCommandBuilder()
+        .setName('pity')
+        .setDescription('Check your current Gacha Pity counter'),
+    new SlashCommandBuilder()
         .setName('removeavatar')
         .setDescription('[STAFF] Remove an avatar and all its variants from the Gacha pool')
         .addStringOption(opt => opt.setName('name').setDescription('Exact or partial name of the avatar').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('leaderboard')
+        .setDescription('View the server leaderboards')
+        .addStringOption(opt => opt.setName('category').setDescription('Leaderboard category').setRequired(true).addChoices(
+            { name: 'Coins', value: 'coins' },
+            { name: 'Level / XP', value: 'level' },
+            { name: 'Avatars Owned', value: 'avatars' }
+        )),
 
 ].map(cmd => cmd.toJSON());
 
@@ -1452,6 +1492,44 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // ── /leaderboard ──────────────────────────────────────────────────────────
+    if (interaction.commandName === 'leaderboard') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        const category = interaction.options.getString('category');
+        await interaction.deferReply();
+
+        try {
+            let users = [];
+            let desc = '';
+            let title = '';
+
+            if (category === 'coins') {
+                title = '💰 Top 10 Richest Players';
+                users = await User.find({}).sort({ coins: -1 }).limit(10);
+                desc = users.map((u, i) => `**${i + 1}.** <@${u.userId}> — 🪙 **${u.coins}** Coins`).join('\n');
+            } else if (category === 'level') {
+                title = '⭐ Top 10 Highest Levels';
+                users = await User.find({}).sort({ level: -1, xp: -1 }).limit(10);
+                desc = users.map((u, i) => `**${i + 1}.** <@${u.userId}> — **Level ${u.level}** (${u.xp} XP)`).join('\n');
+            } else if (category === 'avatars') {
+                title = '👗 Top 10 Avatar Collectors';
+                const allUsers = await User.find({});
+                users = allUsers.sort((a, b) => b.inventory.length - a.inventory.length).slice(0, 10);
+                desc = users.map((u, i) => `**${i + 1}.** <@${u.userId}> — **${u.inventory.length}** Avatars`).join('\n');
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor('#f1c40f')
+                .setTitle(title)
+                .setDescription(desc || 'No players found!')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error generating leaderboard!');
+        }
+    }
+
     // ── /daily ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'daily') {
         if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
@@ -1462,24 +1540,53 @@ client.on('interactionCreate', async (interaction) => {
             if (!userRecord) userRecord = new User({ userId: interaction.user.id });
 
             const now = new Date();
-            // Check if they claimed in the last 24 hours (86400000 ms)
-            if (userRecord.lastDailyDate && (now - userRecord.lastDailyDate) < 86400000) {
-                const timeLeft = Math.ceil((86400000 - (now - userRecord.lastDailyDate)) / 1000 / 60 / 60);
-                return interaction.editReply(`⏳ You already claimed your daily coins! Come back in **${timeLeft} hours**.`);
+            // Reset hours, mins, secs to 0 for streak calculation
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const lastClaimDate = userRecord.lastDailyDate ? new Date(userRecord.lastDailyDate.getFullYear(), userRecord.lastDailyDate.getMonth(), userRecord.lastDailyDate.getDate()) : null;
+            
+            // Check if they claimed today
+            if (lastClaimDate && lastClaimDate.getTime() === today.getTime()) {
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const msLeft = tomorrow - now;
+                const hoursLeft = Math.floor(msLeft / 1000 / 60 / 60);
+                const minsLeft = Math.floor((msLeft / 1000 / 60) % 60);
+                return interaction.editReply(`⏳ You already claimed your daily coins today! Come back in **${hoursLeft}h ${minsLeft}m**.`);
+            }
+
+            // Streak Logic
+            let streak = userRecord.dailyStreak || 0;
+            if (lastClaimDate) {
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                if (lastClaimDate.getTime() === yesterday.getTime()) {
+                    streak += 1;
+                } else {
+                    streak = 1; // Missed a day
+                }
+            } else {
+                streak = 1; // First time
             }
 
             const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
-            let reward = Math.floor(Math.random() * 201) + 100; // 100 to 300 coins
+            let reward = 100 + ((streak - 1) * 25);
             if (isVip) reward *= 2;
+            
+            let extraRewardText = '';
+            if (streak > 0 && streak % 7 === 0) {
+                userRecord.gachaTokens = (userRecord.gachaTokens || 0) + 1;
+                extraRewardText = '\n🎟️ **MILESTONE BONUS!** You received **1 Gacha Token**!';
+            }
 
             userRecord.coins += reward;
             userRecord.lastDailyDate = now;
+            userRecord.dailyStreak = streak;
             await userRecord.save();
 
             const embed = new EmbedBuilder()
                 .setColor(isVip ? 0xffd700 : 0x2ecc71)
                 .setTitle('🎁 Daily Reward Claimed!')
-                .setDescription(`You received **🪙 ${reward} coins**!${isVip ? '\n*(🌟 VIP 2x Bonus Applied!)*' : ''}\nYou now have **🪙 ${userRecord.coins} coins** total.`);
+                .setDescription(`You received **🪙 ${reward} coins**!${isVip ? '\n*(🌟 VIP 2x Bonus Applied!)*' : ''}\n🔥 **Current Streak:** ${streak} Day(s)${extraRewardText}\n\nYou now have **🪙 ${userRecord.coins} coins** total.`);
             return interaction.editReply({ embeds: [embed] });
         } catch (err) {
             console.error(err);
@@ -1942,6 +2049,15 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // ── /pity ─────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'pity') {
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        const userRecord = await User.findOne({ userId: interaction.user.id });
+        const currentPity = userRecord ? (userRecord.pityCounter || 0) : 0;
+        const remaining = Math.max(0, 150 - currentPity);
+        return interaction.reply(`💖 **Your current Pity is ${currentPity}/150.**\n*You are ${remaining} pulls away from a guaranteed UR!*`);
+    }
+
     // ── /gacha ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'gacha') {
         if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
@@ -1954,9 +2070,9 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`❌ You don't have any Gacha Tokens! Buy some in the \`/shop\` using your coins.`);
             }
 
-            // Deduct token
+            // Deduct token & increment pity
             userRecord.gachaTokens -= 1;
-            await userRecord.save();
+            userRecord.pityCounter = (userRecord.pityCounter || 0) + 1;
 
             // Roll logic
             let roll = Math.random();
@@ -1969,7 +2085,12 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             let selectedRarity = 'C';
-            if (isBadLuck) {
+            let isPity = false;
+
+            if (userRecord.pityCounter >= 150) {
+                selectedRarity = 'UR';
+                isPity = true;
+            } else if (isBadLuck) {
                 // Bad Luck Rates: UR (0%), SR (5%), R (25%), C (70%)
                 if (roll < 0.05) selectedRarity = 'SR';
                 else if (roll < 0.30) selectedRarity = 'R';
@@ -1994,9 +2115,15 @@ client.on('interactionCreate', async (interaction) => {
             if (pool.length === 0 && selectedRarity === 'SR') { selectedRarity = 'UR'; pool = gachaPool.filter(m => m.rarity === selectedRarity); }
             if (pool.length === 0 && selectedRarity === 'UR') { selectedRarity = 'USSR'; pool = gachaPool.filter(m => m.rarity === selectedRarity); }
 
+            // Reset pity if a UR or USSR is pulled
+            if (selectedRarity === 'UR' || selectedRarity === 'USSR') {
+                userRecord.pityCounter = 0;
+            }
+
             if (pool.length === 0) {
                 // Refund token if pool is completely empty
                 userRecord.gachaTokens += 1;
+                userRecord.pityCounter = Math.max(0, userRecord.pityCounter - 1);
                 await userRecord.save();
                 return interaction.editReply(`❌ The Gacha Pool is completely empty! Please ask Game Staff to approve some avatars first.`);
             }
@@ -2016,7 +2143,8 @@ client.on('interactionCreate', async (interaction) => {
             const titleAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? ' ✨💎' : '';
             const descAdd = (model.rarity === 'UR' || model.rarity === 'SR') ? '✨ ' : '';
             let luckAdd = '';
-            if (isBadLuck) luckAdd = '\n\n**[🌩️ BAD LUCK ACTIVE]**';
+            if (isPity) luckAdd = '\n\n**[💖 PITY SYSTEM ACTIVATED]**';
+            else if (isBadLuck) luckAdd = '\n\n**[🌩️ BAD LUCK ACTIVE]**';
             else if (isVip) luckAdd = '\n\n**[🌟 VIP LUCK ACTIVATED]**';
 
             // Check if anyone owns this avatar
@@ -2057,6 +2185,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(claimButton);
 
+            await userRecord.save();
             return interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row], files: [attachment] });
         } catch (err) {
             console.error(err);
@@ -2267,7 +2396,105 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // ── /market ───────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'market') {
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        const subCmd = interaction.options.getSubcommand();
+        await interaction.deferReply();
+
+        try {
+            if (subCmd === 'list') {
+                const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+                const price = interaction.options.getInteger('price');
+                let userRecord = await User.findOne({ userId: interaction.user.id });
+                
+                if (!userRecord || !userRecord.inventory.includes(avatarId)) {
+                    return interaction.editReply(`❌ You don't own an avatar with ID \`${avatarId}\`!`);
+                }
+                
+                // Remove one instance of avatar from inventory
+                const invIndex = userRecord.inventory.indexOf(avatarId);
+                userRecord.inventory.splice(invIndex, 1);
+                await userRecord.save();
+                
+                const listing = new MarketListing({ sellerId: interaction.user.id, avatarId: avatarId, price: price });
+                await listing.save();
+                
+                const model = gachaPool.find(m => m.id === avatarId);
+                return interaction.editReply(`✅ You have listed **[${model ? model.rarity : '?'}] ${model ? model.name : avatarId}** on the market for 🪙 **${price}** Coins! (Listing ID: \`${listing._id}\`)`);
+            }
+            
+            if (subCmd === 'view') {
+                const listings = await MarketListing.find({}).sort({ createdAt: -1 }).limit(20);
+                if (listings.length === 0) return interaction.editReply('📉 The marketplace is currently empty!');
+                
+                let desc = '';
+                for (const l of listings) {
+                    const model = gachaPool.find(m => m.id === l.avatarId);
+                    desc += `**ID:** \`${l._id}\`\n**Item:** [${model ? model.rarity : '?'}] ${model ? model.name : l.avatarId}\n**Price:** 🪙 ${l.price}\n**Seller:** <@${l.sellerId}>\n\n`;
+                }
+                
+                const embed = new EmbedBuilder()
+                    .setColor('#f39c12')
+                    .setTitle('🛒 Global Avatar Marketplace (Recent 20)')
+                    .setDescription(desc);
+                return interaction.editReply({ embeds: [embed] });
+            }
+            
+            if (subCmd === 'buy') {
+                const listingId = interaction.options.getString('listing_id');
+                const listing = await MarketListing.findById(listingId);
+                if (!listing) return interaction.editReply(`❌ Market listing \`${listingId}\` not found!`);
+                
+                if (listing.sellerId === interaction.user.id) return interaction.editReply(`❌ You cannot buy your own listing!`);
+                
+                let buyer = await User.findOne({ userId: interaction.user.id });
+                if (!buyer || buyer.coins < listing.price) return interaction.editReply(`❌ You don't have enough coins! You need **🪙 ${listing.price}**.`);
+                
+                // Process transaction
+                buyer.coins -= listing.price;
+                buyer.inventory.push(listing.avatarId);
+                await buyer.save();
+                
+                let seller = await User.findOne({ userId: listing.sellerId });
+                if (seller) {
+                    seller.coins += listing.price;
+                    await seller.save();
+                }
+                
+                await MarketListing.findByIdAndDelete(listingId);
+                
+                const model = gachaPool.find(m => m.id === listing.avatarId);
+                return interaction.editReply(`🎉 You successfully bought **[${model ? model.rarity : '?'}] ${model ? model.name : listing.avatarId}** for 🪙 **${listing.price}** Coins!`);
+            }
+            
+            if (subCmd === 'cancel') {
+                const listingId = interaction.options.getString('listing_id');
+                const listing = await MarketListing.findById(listingId);
+                if (!listing) return interaction.editReply(`❌ Market listing \`${listingId}\` not found!`);
+                
+                if (listing.sellerId !== interaction.user.id && !interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+                    return interaction.editReply(`❌ You don't own this listing!`);
+                }
+                
+                let seller = await User.findOne({ userId: listing.sellerId });
+                if (seller) {
+                    seller.inventory.push(listing.avatarId);
+                    await seller.save();
+                }
+                
+                await MarketListing.findByIdAndDelete(listingId);
+                return interaction.editReply(`✅ Market listing cancelled and avatar returned to inventory!`);
+            }
+            
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error accessing the marketplace!');
+        }
+    }
+
     // ── /trade ────────────────────────────────────────────────────────────────
+
     if (interaction.commandName === 'trade') {
         if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
         
@@ -2354,12 +2581,173 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /coinflip ─────────────────────────────────────────────────────────────
     if (interaction.commandName === 'coinflip') {
-        const result = Math.random() < 0.5 ? 'Heads! 🪙' : 'Tails! 🪙';
-        const embed = new EmbedBuilder()
-            .setColor(0xf1c40f)
-            .setTitle('Coin Flip')
-            .setDescription(`The coin landed on... **${result}**`);
-        return interaction.reply({ embeds: [embed] });
+        const choice = interaction.options.getString('choice');
+        const bet = interaction.options.getInteger('bet');
+
+        if (bet && choice) {
+            if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy bets in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+            await interaction.deferReply();
+            
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || userRecord.coins < bet) {
+                return interaction.editReply(`❌ You don't have enough coins! You need **🪙 ${bet}**.`);
+            }
+
+            userRecord.coins -= bet;
+            
+            const isHeads = Math.random() < 0.5;
+            const resultLabel = isHeads ? 'heads' : 'tails';
+            const resultEmoji = isHeads ? '🪙 Heads' : '🪙 Tails';
+            
+            if (choice === resultLabel) {
+                userRecord.coins += bet * 2;
+                await userRecord.save();
+                const embed = new EmbedBuilder().setColor(0x2ecc71).setTitle('Coin Flip - WIN!').setDescription(`The coin landed on **${resultEmoji}**!\nYou won **🪙 ${bet}** Coins!\n\nNew Balance: **🪙 ${userRecord.coins}**`);
+                return interaction.editReply({ embeds: [embed] });
+            } else {
+                await userRecord.save();
+                const embed = new EmbedBuilder().setColor(0xe74c3c).setTitle('Coin Flip - LOSE').setDescription(`The coin landed on **${resultEmoji}**...\nYou lost **🪙 ${bet}** Coins.\n\nNew Balance: **🪙 ${userRecord.coins}**`);
+                return interaction.editReply({ embeds: [embed] });
+            }
+        } else {
+            const isHeads = Math.random() < 0.5;
+            const resultEmoji = isHeads ? 'Heads! 🪙' : 'Tails! 🪙';
+            const embed = new EmbedBuilder()
+                .setColor(0xf1c40f)
+                .setTitle('Coin Flip')
+                .setDescription(`The coin landed on... **${resultEmoji}**`);
+            return interaction.reply({ embeds: [embed] });
+        }
+    }
+
+    // ── /roulette ─────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'roulette') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        const bet = interaction.options.getInteger('bet');
+        const color = interaction.options.getString('color');
+        
+        await interaction.deferReply();
+        
+        let userRecord = await User.findOne({ userId: interaction.user.id });
+        if (!userRecord || userRecord.coins < bet) {
+            return interaction.editReply(`❌ You don't have enough coins! You need **🪙 ${bet}**.`);
+        }
+        userRecord.coins -= bet;
+        
+        const roll = Math.floor(Math.random() * 38);
+        let resultColor = 'green';
+        if (roll > 1) {
+            resultColor = (roll % 2 === 0) ? 'red' : 'black';
+        }
+        
+        let multiplier = 0;
+        if (color === resultColor) {
+            if (resultColor === 'green') multiplier = 14;
+            else multiplier = 2;
+        }
+        
+        const emojiMap = { red: '🔴 Red', black: '⚫ Black', green: '🟢 Green' };
+        
+        if (multiplier > 0) {
+            userRecord.coins += bet * multiplier;
+            await userRecord.save();
+            const embed = new EmbedBuilder().setColor(0x2ecc71).setTitle('🎡 Roulette - WIN!').setDescription(`The wheel landed on **${emojiMap[resultColor]}**!\nYou won **🪙 ${bet * (multiplier - 1)}** Coins!\n\nNew Balance: **🪙 ${userRecord.coins}**`);
+            return interaction.editReply({ embeds: [embed] });
+        } else {
+            await userRecord.save();
+            const embed = new EmbedBuilder().setColor(0xe74c3c).setTitle('🎡 Roulette - LOSE').setDescription(`The wheel landed on **${emojiMap[resultColor]}**...\nYou lost **🪙 ${bet}** Coins.\n\nNew Balance: **🪙 ${userRecord.coins}**`);
+            return interaction.editReply({ embeds: [embed] });
+        }
+    }
+
+    // ── /blackjack ────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'blackjack') {
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        const bet = interaction.options.getInteger('bet');
+        await interaction.deferReply();
+        
+        let userRecord = await User.findOne({ userId: interaction.user.id });
+        if (!userRecord || userRecord.coins < bet) {
+            return interaction.editReply(`❌ You don't have enough coins! You need **🪙 ${bet}**.`);
+        }
+        userRecord.coins -= bet;
+        await userRecord.save();
+        
+        const drawCard = () => Math.floor(Math.random() * 11) + 1;
+        
+        let pScore = drawCard() + drawCard();
+        let dScore = drawCard();
+        
+        const renderEmbed = (status, p, d) => {
+            let color = 0xf1c40f;
+            let title = '🃏 Blackjack';
+            if (status === 'win') { color = 0x2ecc71; title += ' - WIN!'; }
+            if (status === 'lose') { color = 0xe74c3c; title += ' - LOSE!'; }
+            if (status === 'tie') { color = 0x95a5a6; title += ' - TIE!'; }
+            return new EmbedBuilder()
+                .setColor(color)
+                .setTitle(title)
+                .setDescription(`**Your Hand:** ${p}\n**Dealer's Hand:** ${status === 'playing' ? d + ' + ?' : d}`);
+        };
+
+        const hitBtn = new ButtonBuilder().setCustomId('bj_hit').setLabel('Hit').setStyle(ButtonStyle.Primary);
+        const standBtn = new ButtonBuilder().setCustomId('bj_stand').setLabel('Stand').setStyle(ButtonStyle.Secondary);
+        const row = new ActionRowBuilder().addComponents(hitBtn, standBtn);
+        
+        if (pScore === 21) {
+            userRecord.coins += Math.floor(bet * 2.5);
+            await userRecord.save();
+            return interaction.editReply({ content: '🎉 Blackjack!', embeds: [renderEmbed('win', pScore, dScore)] });
+        }
+        
+        const msg = await interaction.editReply({ embeds: [renderEmbed('playing', pScore, dScore)], components: [row] });
+        const collector = msg.createMessageComponentCollector({ time: 60000 });
+        
+        collector.on('collect', async i => {
+            if (i.user.id !== interaction.user.id) {
+                return i.reply({ content: 'Not your game!', flags: 64 });
+            }
+            await i.deferUpdate();
+            
+            if (i.customId === 'bj_hit') {
+                pScore += drawCard();
+                if (pScore > 21) {
+                    collector.stop('bust');
+                } else {
+                    await i.editReply({ embeds: [renderEmbed('playing', pScore, dScore)], components: [row] });
+                }
+            } else if (i.customId === 'bj_stand') {
+                collector.stop('stand');
+            }
+        });
+        
+        collector.on('end', async (collected, reason) => {
+            if (reason === 'time') {
+                return interaction.editReply({ content: '⏳ Game timed out! You lost your bet.', components: [] });
+            }
+            if (reason === 'bust') {
+                return interaction.editReply({ content: `💥 You busted! Lost **🪙 ${bet}** Coins.`, embeds: [renderEmbed('lose', pScore, dScore)], components: [] });
+            }
+            if (reason === 'stand') {
+                while (dScore < 17) dScore += drawCard();
+                
+                let resultText = '';
+                if (dScore > 21 || pScore > dScore) {
+                    userRecord.coins += bet * 2;
+                    await userRecord.save();
+                    resultText = `🎉 You win **🪙 ${bet}** Coins!`;
+                    return interaction.editReply({ content: resultText, embeds: [renderEmbed('win', pScore, dScore)], components: [] });
+                } else if (dScore > pScore) {
+                    resultText = `💥 Dealer wins! Lost **🪙 ${bet}** Coins.`;
+                    return interaction.editReply({ content: resultText, embeds: [renderEmbed('lose', pScore, dScore)], components: [] });
+                } else {
+                    userRecord.coins += bet;
+                    await userRecord.save();
+                    resultText = `🤝 Push! Returned **🪙 ${bet}** Coins.`;
+                    return interaction.editReply({ content: resultText, embeds: [renderEmbed('tie', pScore, dScore)], components: [] });
+                }
+            }
+        });
     }
 
     // ── /roll ─────────────────────────────────────────────────────────────────

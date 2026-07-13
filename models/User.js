@@ -20,7 +20,9 @@ const userSchema = new mongoose.Schema({
     lastSubmissionRewardDate: { type: Date, default: null }, // Daily reward tracker
     vipExpiresAt: { type: Date, default: null }, // VIP mode expiration
     badLuckExpiresAt: { type: Date, default: null }, // Bad Luck expiration
-    profanityCount: { type: Number, default: 0 } // Tracker for the Hall of Re:START swearing leaderboard
+    profanityCount: { type: Number, default: 0 }, // Tracker for the Hall of Re:START swearing leaderboard
+    pityCounter: { type: Number, default: 0 }, // Tracks gacha rolls since last UR
+    dailyStreak: { type: Number, default: 0 } // Tracks consecutive daily logins
 });
 
 module.exports = mongoose.model('User', userSchema);
