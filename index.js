@@ -1084,6 +1084,10 @@ client.on('interactionCreate', async (interaction) => {
             const parts = interaction.customId.split(':');
             modelId = parts[1];
             rollerId = parts[2];
+            const timestamp = parseInt(parts[3]);
+            if (Date.now() - timestamp > 20000) {
+                return interaction.reply({ content: '❌ This drop has expired (20 second limit)!', flags: 64 });
+            }
         } else {
             // Old format: claim_model_id_roller_id_timestamp OR claim_model_id_timestamp
             const withoutPrefix = interaction.customId.replace('claim_', '');
@@ -2609,7 +2613,23 @@ client.on('interactionCreate', async (interaction) => {
             const row = new ActionRowBuilder().addComponents(claimButton);
 
             await userRecord.save();
-            return interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row], files: [attachment] });
+            const replyMsg = await interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row], files: [attachment] });
+
+            setTimeout(async () => {
+                try {
+                    const fetchedMsg = await interaction.channel.messages.fetch(replyMsg.id);
+                    if (fetchedMsg && fetchedMsg.components && fetchedMsg.components[0] && !fetchedMsg.components[0].components[0].disabled) {
+                        const expiredBtn = new ButtonBuilder()
+                            .setCustomId('expired')
+                            .setLabel('Expired')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(true);
+                        const newRow = new ActionRowBuilder().addComponents(expiredBtn);
+                        await fetchedMsg.edit({ components: [newRow] });
+                    }
+                } catch (e) {}
+            }, 20000);
+            return;
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred during the Gacha roll!');
