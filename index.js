@@ -961,6 +961,8 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 userRecord.inventory.push(cardId);
                 userRecord.lastCardDropClaimDate = now;
+                userRecord.markModified('lastCardDropClaimDate');
+                userRecord.markModified('inventory');
                 await userRecord.save();
 
                 const disabledButton = new ButtonBuilder()
@@ -990,9 +992,11 @@ client.on('interactionCreate', async (interaction) => {
 
                 if (userRecord.coinSnipeCount === 0 || !userRecord.lastCoinSnipeReset) {
                     userRecord.lastCoinSnipeReset = now;
+                    userRecord.markModified('lastCoinSnipeReset');
                 }
                 
                 userRecord.coinSnipeCount += 1;
+                userRecord.markModified('coinSnipeCount');
                 const snipeCoins = Math.floor(cardData.value / 2); // get half value in coins
                 userRecord.coins += snipeCoins;
                 await userRecord.save();
