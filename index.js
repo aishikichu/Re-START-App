@@ -343,6 +343,14 @@ const slashCommands = [
             opt.setName('amount').setDescription('Amount of coins to give').setRequired(true).setMinValue(1)),
 
     new SlashCommandBuilder()
+        .setName('addgachatoken')
+        .setDescription('🎟️ Give free gacha tokens to a user (Developer only)')
+        .addUserOption(opt => 
+            opt.setName('user').setDescription('The user to give tokens to').setRequired(true))
+        .addIntegerOption(opt => 
+            opt.setName('amount').setDescription('Amount of tokens to give').setRequired(true).setMinValue(1)),
+
+    new SlashCommandBuilder()
         .setName('purge')
         .setDescription('🔥 Wipe all inventories and coins (Developer only)'),
 
@@ -2058,6 +2066,27 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // ── /addgachatoken (Developer) ────────────────────────────────────────────
+    if (interaction.commandName === 'addgachatoken') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Hidden command.', ephemeral: true });
+        const targetUser = interaction.options.getUser('user');
+        const amount = interaction.options.getInteger('amount');
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            let receiverRecord = await User.findOne({ userId: targetUser.id });
+            if (!receiverRecord) receiverRecord = new User({ userId: targetUser.id });
+
+            receiverRecord.gachaTokens += amount;
+            await receiverRecord.save();
+
+            return interaction.editReply(`✅ Successfully generated and added **🎟️ ${amount} Gacha Tokens** to <@${targetUser.id}>! Their new balance is **🎟️ ${receiverRecord.gachaTokens}**.`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while adding gacha tokens!');
+        }
+    }
+
     // ── /purge (Developer) ────────────────────────────────────────────────────
     if (interaction.commandName === 'purge') {
         if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Hidden command.', ephemeral: true });
@@ -2310,7 +2339,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 256 }))
                 .addFields(
                     { name: '✨ Level & XP', value: `Level **${userRecord.level}** (${userRecord.xp} XP)`, inline: true },
-                    { name: '💰 Balance & Net Worth', value: `Balance: **🪙 ${userRecord.coins}**\nNet Worth: **🪙 ${netWorth}**`, inline: true }
+                    { name: '💰 Balance & Net Worth', value: `Balance: **🪙 ${userRecord.coins}**\nNet Worth: **🪙 ${netWorth}**\nGacha Tokens: **🎟️ ${userRecord.gachaTokens || 0}**`, inline: true }
                 );
 
             if (isVip) {
