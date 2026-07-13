@@ -434,6 +434,9 @@ const slashCommands = [
             { name: 'Level / XP', value: 'level' },
             { name: 'Avatars Owned', value: 'avatars' }
         )),
+    new SlashCommandBuilder()
+        .setName('updateinfo')
+        .setDescription('[DEV] Update the INFO channel message'),
 
 ].map(cmd => cmd.toJSON());
 
@@ -1319,6 +1322,51 @@ client.on('interactionCreate', async (interaction) => {
     const { commandName } = interaction;
 
     // ── Staff & Event Commands ──────────────────────────────────────────
+    if (commandName === 'updateinfo') {
+        if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Only the Developer can use this command!', ephemeral: true });
+        
+        await interaction.deferReply({ ephemeral: true });
+        
+        try {
+            const infoPath = path.join(__dirname, 'docs', 'INFO.md');
+            if (!fs.existsSync(infoPath)) return interaction.editReply('❌ docs/INFO.md does not exist!');
+            
+            const infoContent = fs.readFileSync(infoPath, 'utf8');
+            const channel = await client.channels.fetch(INFO_CHANNEL_ID);
+            
+            if (!channel) return interaction.editReply('❌ Could not fetch INFO channel!');
+            
+            // Delete old bot messages
+            const messages = await channel.messages.fetch({ limit: 50 });
+            const botMessages = messages.filter(m => m.author.id === client.user.id);
+            for (const [id, msg] of botMessages) {
+                await msg.delete();
+            }
+            
+            // Split content into chunks by double newline
+            const chunks = infoContent.split(/\n\n/g);
+            let currentMessage = '';
+            
+            for (const chunk of chunks) {
+                if (currentMessage.length + chunk.length > 1900) {
+                    if (currentMessage.trim()) await channel.send({ content: currentMessage.trim() });
+                    currentMessage = chunk + '\n\n';
+                } else {
+                    currentMessage += chunk + '\n\n';
+                }
+            }
+            
+            if (currentMessage.trim().length > 0) {
+                await channel.send({ content: currentMessage.trim() });
+            }
+            
+            return interaction.editReply('✅ INFO channel successfully updated with new messages!');
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error updating INFO channel.');
+        }
+    }
+
     if (commandName === 'addstaff') {
         if (interaction.user.id !== '510338423941496863') return interaction.reply({ content: '❌ Only the Developer can use this command!', ephemeral: true });
         const targetUser = interaction.options.getUser('user');
