@@ -45,10 +45,20 @@
 ## 3. Economy & Leveling 🪙
 > Chat to earn XP, level up, and collect coins to spend in the Re:BOOTH shop! 🛍️
 
-* 📈 **`/rank`** — Check your current Level, XP, and Coin balance.
-* 🎁 **`/daily`** — Claim your free daily coins (available once every 24 hours).
-* 🎰 **`/slots <bet>`** — Bet your coins on the slot machine! Win 2x your bet for matching two emojis, or 5x for a Jackpot!
+* 📈 **`/rank`** / **`/balance`** — Check your current Level, XP, and Coin balance.
+* 🎁 **`/daily`** — Claim your free daily coins (available once every 24 hours). Keep your streak for Gacha Tokens!
+* 🍔 **`/work <avatar_id>`** — Send an avatar to work for 4 hours to earn coins. Expand slots with `/buy work_slot`.
+* 💥 **`/riskywork <avatar_id>`** — Send an avatar on an illegal heist for massive payouts! Fail and they go to jail.
+* 🍟 **`/claimwork`** — Claim the wages from your working avatars. After claiming, avatars will enter a 2-hour Resting phase.
+* ✨ **`/upgrade <avatar_id> <stat>`** — Level up an avatar's RPG Stats (Speed, Endurance, Luck) up to Level 10 using Coins and Affinity.
 * 💝 **`/give <user> <amount>`** — Transfer your coins to another user. Spread the wealth!
+
+### 🎲 Casino Minigames
+Want to risk it all? (Note: Max jackpot limits apply to prevent extreme inflation!)
+* 🎰 **`/slots <bet>`** — Bet your coins on the slot machine! Win 2x your bet for matching two emojis, or 5x for a Jackpot!
+* 🃏 **`/blackjack <bet>`** — Play a game of Blackjack against the dealer!
+* 🎡 **`/roulette <bet> <color>`** — Bet your coins on Red, Black, or Green!
+* 🪙 **`/coinflip <bet> <guess>`** — The classic 50/50! Flip a coin and double your bet if you guess right!
 
 ### 🛒 The Dynamic Shop
 * 🛍️ **`/shop`** — View the server shop! The shop has **Dynamic Pricing**, meaning the cost of items like Gacha Tokens will fluctuate every 3 hours based on a simulated market economy. It also sells Daily Cosmetics (Colors & Badges) that reset every 24 hours.
