@@ -55,9 +55,9 @@ While chatting, keep an eye out for random drops appearing in the chat!
 See a hilarious or amazing message? React to it with a ⭐! If a message gets enough star reactions, the bot will immortalize it in the **#starboard** channel for everyone to see!
 
 ## 📚 Read About the App
-> 🔹 **`github`** - https://github.com/aishikichu/Re-START-App
-> > 🔹 **`wiki`** - https://github.com/aishikichu/Re-START-App/blob/main/docs/WIKI.md
-> > 🔹 **`widget user guide`** - https://docs.google.com/document/d/1ZFgmAhg50SeUP5QhYaNafr691wUi6MXR229VzbaZmyg/edit?tab=t.0#heading=h.e9biet7oj7hj
+> 🔹 **`github`** - <https://github.com/aishikichu/Re-START-App>
+> > 🔹 **`wiki`** - <https://github.com/aishikichu/Re-START-App/blob/main/docs/WIKI.md>
+> > 🔹 **`widget user guide`** - <https://docs.google.com/document/d/1ZFgmAhg50SeUP5QhYaNafr691wUi6MXR229VzbaZmyg/edit?tab=t.0#heading=h.e9biet7oj7hj>
 
 # 📜 BOT Server Rules?
 To keep this community fun, safe, and welcoming for everyone, please follow these rules:
