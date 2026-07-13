@@ -1121,31 +1121,60 @@ client.on('interactionCreate', async (interaction) => {
 
             let claimMsg = '';
             
-            // Does the claimer already own this avatar?
+            const now = new Date();
+            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+            
             const alreadyOwns = claimerRecord.inventory.includes(modelId);
 
-            if (alreadyOwns) {
-                if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
-                const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
-                claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
-                
-                const percent = Math.min((currentAff + 1) * 10, 100);
+            if (!alreadyOwns) {
+                // FULL CLAIM
+                if (claimerRecord.lastCardDropClaimDate && claimerRecord.lastCardDropClaimDate > oneHourAgo) {
+                    activeClaimLocks.delete(interaction.message.id);
+                    return interaction.reply({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                }
+
+                claimerRecord.inventory.push(modelId);
+                claimerRecord.lastCardDropClaimDate = now;
+                claimerRecord.markModified('lastCardDropClaimDate');
+                claimerRecord.markModified('inventory');
+
                 if (claimerId !== rollerId) {
-                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop! They already owned it, giving them **+10% Affinity** (${percent}% Total)!`;
+                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and added the avatar to their inventory!`;
                 } else {
-                    claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
+                    claimMsg = `💖 **Claimed!** <@${claimerId}> added the avatar to their inventory!`;
                 }
             } else {
+                // DUPE / COIN SNIPE
+                if (claimerRecord.lastCoinSnipeReset && claimerRecord.lastCoinSnipeReset < oneHourAgo) {
+                    claimerRecord.coinSnipeCount = 0;
+                    claimerRecord.lastCoinSnipeReset = now;
+                    claimerRecord.markModified('lastCoinSnipeReset');
+                }
+                if (claimerRecord.coinSnipeCount >= 5) {
+                    activeClaimLocks.delete(interaction.message.id);
+                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                }
+
+                if (claimerRecord.coinSnipeCount === 0 || !claimerRecord.lastCoinSnipeReset) {
+                    claimerRecord.lastCoinSnipeReset = now;
+                    claimerRecord.markModified('lastCoinSnipeReset');
+                }
+                claimerRecord.coinSnipeCount += 1;
+                claimerRecord.markModified('coinSnipeCount');
+
                 if (claimerId !== rollerId) {
-                    // Sniper doesn't own it -> gets random coin value (40% to 100% of worth)
-                    const randomMultiplier = Math.random() * 0.6 + 0.4;
-                    const snipeCoins = Math.floor(model.value * randomMultiplier);
+                    // Sniper gets Coins!
+                    const snipeCoins = Math.floor((model.value || 100) / 2);
                     claimerRecord.coins += snipeCoins;
-                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and sold it for **🪙 ${snipeCoins} Coins**!`;
+                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> already owns this, so they sniped it for **🪙 ${snipeCoins} Coins** instead!`;
                 } else {
-                    // Roller doesn't own it -> gets the avatar!
-                    claimerRecord.inventory.push(modelId);
-                    claimMsg = `💖 **Claimed!** <@${claimerId}> added the avatar to their inventory!`;
+                    // Roller gets Affinity!
+                    if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
+                    const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
+                    claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
+                    
+                    const percent = Math.min((currentAff + 1) * 10, 100);
+                    claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
                 }
             }
             await claimerRecord.save();
