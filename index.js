@@ -378,6 +378,10 @@ const slashCommands = [
         .setName('fetchavatars')
         .setDescription('[STAFF] Fetch random avatars from Booth for review')
         .addIntegerOption(opt => opt.setName('amount').setDescription('Number of avatars (max 10)').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('removeavatar')
+        .setDescription('[STAFF] Remove an avatar and all its variants from the Gacha pool')
+        .addStringOption(opt => opt.setName('name').setDescription('Exact or partial name of the avatar').setRequired(true)),
 
 ].map(cmd => cmd.toJSON());
 
@@ -1211,7 +1215,35 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.reply({ content: `✅ Your Event Card has been submitted for review!`, ephemeral: true });
     }
 
+    if (commandName === 'removeavatar') {
+        let userRec = await User.findOne({ userId: interaction.user.id });
+        if (!userRec || (!userRec.isGameStaff && interaction.user.id !== '510338423941496863')) return interaction.reply({ content: '❌ Only Game Staff can use this command!', ephemeral: true });
+
+        const name = interaction.options.getString('name');
+        await interaction.deferReply({ ephemeral: true });
+        
+        try {
+            // Escape regex characters just to be safe
+            const safeName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(safeName, 'i');
+            
+            const result = await GachaItem.deleteMany({ name: { $regex: regex } });
+            
+            if (result.deletedCount > 0) {
+                // Update in-memory pool
+                gachaPool = gachaPool.filter(g => !regex.test(g.name));
+                return interaction.editReply(`✅ Successfully removed ${result.deletedCount} avatar variant(s) matching "${name}" from the Gacha Pool.`);
+            } else {
+                return interaction.editReply(`❌ No avatars found matching "${name}".`);
+            }
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply(`❌ Failed to remove avatar.`);
+        }
+    }
+
     if (commandName === 'fetchavatars') {
+
         const amount = interaction.options.getInteger('amount');
         if (amount < 1 || amount > 50) return interaction.reply({ content: '❌ Amount must be between 1 and 50!', ephemeral: true });
 
