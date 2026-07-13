@@ -1,6 +1,14 @@
 # 🌟 Welcome to Re:START!
 Meet our custom-built server bot, packed with exclusive features to make chatting here a game in itself! Here is a quick guide on what the bot can do:
 
+## 🔁 How the Game Works
+Re:START turns chatting in the server into a full-fledged RPG and Collection game! Here is the core loop:
+1. **Chat & Earn:** Chatting passively earns you Coins and XP.
+2. **Spin the Gacha:** Buy Gacha Tokens to spin the `/gacha` and collect rare VRChat Avatars.
+3. **Build an Empire:** Send your avatars to `/work` to earn passive income! (Careful, they need a 2-hour rest after a shift!)
+4. **Upgrade:** Use your profits and Affinity to `/upgrade` your avatars' RPG stats (Speed, Endurance, Luck).
+5. **Trade & Show Off:** Trade avatars, snipe the `/market`, and display your rarest finds on your `/profile` showcase!
+
 ## 🪙 The Economy
 Chatting actively in the server will automatically reward you with **Coins**!
 > 🔹 **`/daily`** - Claim your free daily coin allowance! Keep your streak going to earn more coins and a Gacha Token milestone every 7 days!
