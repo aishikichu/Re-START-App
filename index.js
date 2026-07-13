@@ -1207,7 +1207,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             const cheerio = require('cheerio');
-            const page = Math.floor(Math.random() * 5) + 1;
+            const page = Math.floor(Math.random() * 50) + 1;
             const res = await fetch(`https://booth.pm/en/search/%E3%82%AA%E3%83%AA%E3%82%B8%E3%83%8A%E3%83%AB3D%E3%83%A2%E3%83%87%E3%83%AB?category_ids%5B%5D=208&sort=wish&page=${page}`);
             const html = await res.text();
             const $ = cheerio.load(html);
@@ -1244,12 +1244,17 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // Enforce Widget Channel
-    const WIDGET_COMMANDS = ['setstat', 'profile', 'setshowcase'];
-    if (interaction.channelId === WIDGET_CHANNEL_ID && !WIDGET_COMMANDS.includes(interaction.commandName) && interaction.commandName !== 'help') {
+    const WIDGET_COMMANDS = ['setstat', 'setshowcase'];
+    const PROFILE_CHANNELS = [WIDGET_CHANNEL_ID, ECONOMY_CHANNEL_ID, REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID, TRADING_CHANNEL_ID];
+
+    if (interaction.channelId === WIDGET_CHANNEL_ID && !WIDGET_COMMANDS.includes(interaction.commandName) && interaction.commandName !== 'profile' && interaction.commandName !== 'help') {
         return interaction.reply({ content: `⚠️ Only widget & profile commands can be used in this channel!`, flags: 64 });
     }
-    if (interaction.channelId !== WIDGET_CHANNEL_ID && WIDGET_COMMANDS.includes(interaction.commandName)) {
-        return interaction.reply({ content: `⚠️ Please use widget & profile commands in <#${WIDGET_CHANNEL_ID}>!`, flags: 64 });
+    if (WIDGET_COMMANDS.includes(interaction.commandName) && interaction.channelId !== WIDGET_CHANNEL_ID) {
+        return interaction.reply({ content: `⚠️ Please use widget commands in <#${WIDGET_CHANNEL_ID}>!`, flags: 64 });
+    }
+    if (interaction.commandName === 'profile' && !PROFILE_CHANNELS.includes(interaction.channelId)) {
+        return interaction.reply({ content: `⚠️ Please use the profile command in appropriate bot channels!`, flags: 64 });
     }
 
     // ── /help ─────────────────────────────────────────────────────────────────
