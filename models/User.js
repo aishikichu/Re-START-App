@@ -27,7 +27,9 @@ const userSchema = new mongoose.Schema({
     coinSnipeCount: { type: Number, default: 0 }, // Random drop 5/hr limit counter
     lastCoinSnipeReset: { type: Date, default: null }, // When the 5/hr limit resets
     workEndTime: { type: Date, default: null }, // Timestamp when avatar finishes working
-    workingAvatar: { type: String, default: null }, // ID of the avatar currently working
+    workingAvatar: { type: String, default: null }, // [DEPRECATED] ID of the avatar currently working
+    workSlots: { type: Number, default: 1 }, // Max concurrent work shifts
+    activeWorkJobs: { type: Map, of: Date, default: {} }, // Map of avatar ID to work end time
     avatarJailTime: { type: Map, of: Date, default: {} }, // Map of avatar ID to jail release Date
     lastRiskyWorkTime: { type: Date, default: null } // Global user cooldown for riskywork
 });

@@ -189,17 +189,17 @@ const slashCommands = [
         .setName('coinflip')
         .setDescription('🪙 Flip a coin and bet some coins!')
         .addStringOption(opt => opt.setName('choice').setDescription('Heads or tails').setRequired(false).addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' }))
-        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount of coins to bet').setRequired(false).setMinValue(1)),
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount of coins to bet').setRequired(false).setMinValue(1).setMaxValue(3500)),
 
     new SlashCommandBuilder()
         .setName('blackjack')
         .setDescription('🃏 Play a game of Blackjack against the bot!')
-        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1)),
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1).setMaxValue(3500)),
 
     new SlashCommandBuilder()
         .setName('roulette')
         .setDescription('🎡 Bet on the roulette wheel!')
-        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1))
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1).setMaxValue(500))
         .addStringOption(opt => opt.setName('color').setDescription('Color to bet on').setRequired(true).addChoices(
             { name: 'Red (2x)', value: 'red' },
             { name: 'Black (2x)', value: 'black' },
@@ -248,7 +248,7 @@ const slashCommands = [
         .setName('slots')
         .setDescription('Bet your coins on the slot machine!')
         .addIntegerOption(opt => 
-            opt.setName('bet').setDescription('Amount of coins to bet').setRequired(true).setMinValue(1)),
+            opt.setName('bet').setDescription('Amount of coins to bet').setRequired(true).setMinValue(1).setMaxValue(700)),
     new SlashCommandBuilder()
         .setName('give')
         .setDescription('Give coins to another user')
@@ -276,6 +276,7 @@ const slashCommands = [
                 { name: '🎟️ Gacha Token', value: 'token' },
                 { name: '⚡ XP Booster', value: 'xpboost' },
                 { name: '🌟 VIP Pass', value: 'vip' },
+                { name: '💼 Work Slot', value: 'work_slot' },
                 { name: '🎨 Color 1', value: 'color1' },
                 { name: '🎨 Color 2', value: 'color2' },
                 { name: '🎨 Color 3', value: 'color3' },
@@ -2184,10 +2185,19 @@ client.on('interactionCreate', async (interaction) => {
 
             // Generate 1 random badge
             const badges = ['🐧', '💖', '✨', '👑', '🔥', '🌸', '💀', '👽', '👻', '💎', '⭐', '🎵', '🍙', '🎀', '🦊'];
-            const rareBadges = ['👑', '💖', '💎', '🦊', '🐧'];
+            const rareBadges = ['👑', '💖', '💎', '🦊'];
             const emoji = badges[Math.floor(Math.random() * badges.length)];
-            const badgeRarity = rareBadges.includes(emoji) ? 'Rare' : 'Common';
-            const badgePrice = badgeRarity === 'Rare' ? (Math.floor(Math.random() * 50000) + 50000) : (Math.floor(Math.random() * 10000) + 5000);
+            
+            let badgeRarity = 'Common';
+            let badgePrice = Math.floor(Math.random() * 10000) + 5000;
+            
+            if (rareBadges.includes(emoji)) {
+                badgeRarity = 'Rare';
+                badgePrice = Math.floor(Math.random() * 50000) + 50000;
+            } else if (emoji === '🐧') {
+                badgeRarity = 'Legendary';
+                badgePrice = 1000000;
+            }
             
             shop.badge = { emoji, rarity: badgeRarity, price: badgePrice, sold: false };
             updated = true;
@@ -2222,6 +2232,9 @@ client.on('interactionCreate', async (interaction) => {
             const vSoldText = shop.vipPass.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${shop.vipPass.price} Coins`;
             embed.addFields({ name: '🌟 VIP Mode Pass (1 Hour)', value: `${vSoldText}\nGain Double Gacha Luck and 15% Slots Override Chance! ID: \`vip\`` });
         }
+
+        embed.addFields({ name: '--- Permanent Upgrades ---', value: '\u200B' });
+        embed.addFields({ name: '💼 Work Slot Expansion', value: `**Cost:** 🪙 5,000 * Current Slots\nUnlock up to 20 slots to send multiple avatars to work! ID: \`work_slot\`` });
 
         embed.addFields({ name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' });
 
@@ -2270,6 +2283,20 @@ client.on('interactionCreate', async (interaction) => {
                 userRecord.activeXpBoost = new Date(Date.now() + 3600000); // 1 hour from now
                 await userRecord.save();
                 return interaction.editReply(`✅ You bought an **⚡ XP Booster**! You will now gain 2x Chat XP for the next hour!`);
+            }
+
+            if (itemStr === 'work_slot') {
+                const maxSlots = 20;
+                if (userRecord.workSlots >= maxSlots) {
+                    return interaction.editReply(`❌ You have already reached the maximum of **${maxSlots} Work Slots**!`);
+                }
+                const slotCost = userRecord.workSlots * 5000;
+                if (userRecord.coins < slotCost) return interaction.editReply(`❌ You need **🪙 ${slotCost}** to unlock Work Slot #${userRecord.workSlots + 1}. You have **🪙 ${userRecord.coins}**.`);
+                
+                userRecord.coins -= slotCost;
+                userRecord.workSlots += 1;
+                await userRecord.save();
+                return interaction.editReply(`✅ You bought **💼 Work Slot #${userRecord.workSlots}** for 🪙 ${slotCost}! You can now dispatch more avatars to work simultaneously!`);
             }
 
             if (itemStr === 'vip') {
@@ -2901,23 +2928,41 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
 
-            if (userRecord.workEndTime && userRecord.workEndTime > new Date()) {
-                return interaction.editReply(`❌ You already have an avatar slaving away! They will be done <t:${Math.floor(userRecord.workEndTime.getTime()/1000)}:R>. Use \`/claimwork\` when they survive their shift.`);
+            // --- MIGRATION BLOCK ---
+            if (userRecord.workingAvatar && userRecord.workEndTime) {
+                if (!userRecord.activeWorkJobs) userRecord.activeWorkJobs = new Map();
+                userRecord.activeWorkJobs.set(userRecord.workingAvatar, userRecord.workEndTime);
+                userRecord.workingAvatar = null;
+                userRecord.workEndTime = null;
+                userRecord.markModified('activeWorkJobs');
+                userRecord.markModified('workingAvatar');
+                await userRecord.save();
             }
+            // -----------------------
 
-            if (userRecord.workEndTime && userRecord.workEndTime <= new Date() && userRecord.workingAvatar) {
-                return interaction.editReply(`⚠️ Your previous avatar survived their shift! Please use \`/claimwork\` before sending another one to the grease pits.`);
-            }
-
+            if (!userRecord.activeWorkJobs) userRecord.activeWorkJobs = new Map();
             const model = gachaPool.find(m => m.id === avatarId);
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
+
+            if (userRecord.activeWorkJobs.has(avatarId)) {
+                const existingEndTime = userRecord.activeWorkJobs.get(avatarId);
+                if (existingEndTime > new Date()) {
+                    return interaction.editReply(`❌ **${model.name}** is already slaving away! They will be done <t:${Math.floor(existingEndTime.getTime()/1000)}:R>.`);
+                } else {
+                    return interaction.editReply(`⚠️ **${model.name}** already survived their shift! Please use \`/claimwork\` before sending them to the grease pits again.`);
+                }
+            }
+
+            if (userRecord.activeWorkJobs.size >= userRecord.workSlots) {
+                return interaction.editReply(`❌ You have reached your maximum capacity of **${userRecord.workSlots} concurrent Work Slots**! Use \`/buy work_slot\` to expand your empire or wait for a shift to finish and \`/claimwork\`.`);
+            }
 
             // Set work for 4 hours
             const workDurationHours = 4;
             const endTime = new Date(Date.now() + workDurationHours * 60 * 60 * 1000);
             
-            userRecord.workingAvatar = avatarId;
-            userRecord.workEndTime = endTime;
+            userRecord.activeWorkJobs.set(avatarId, endTime);
+            userRecord.markModified('activeWorkJobs');
             await userRecord.save();
 
             const embed = new EmbedBuilder()
@@ -2941,34 +2986,57 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             let userRecord = await User.findOne({ userId: interaction.user.id });
-            if (!userRecord || !userRecord.workingAvatar) {
-                return interaction.editReply(`❌ You don't have any avatar currently flipping burgers! Use \`/work [avatar_id]\` to send one to the grease pits.`);
+            // --- MIGRATION BLOCK ---
+            if (userRecord.workingAvatar && userRecord.workEndTime) {
+                if (!userRecord.activeWorkJobs) userRecord.activeWorkJobs = new Map();
+                userRecord.activeWorkJobs.set(userRecord.workingAvatar, userRecord.workEndTime);
+                userRecord.workingAvatar = null;
+                userRecord.workEndTime = null;
+                userRecord.markModified('activeWorkJobs');
+                userRecord.markModified('workingAvatar');
+                await userRecord.save();
+            }
+            // -----------------------
+
+            if (!userRecord.activeWorkJobs || userRecord.activeWorkJobs.size === 0) {
+                return interaction.editReply(`❌ You don't have any avatars currently flipping burgers! Use \`/work [avatar_id]\` to send them to the grease pits.`);
             }
 
-            if (userRecord.workEndTime > new Date()) {
-                return interaction.editReply(`⏳ Your avatar is still suffering through their shift! They will be done <t:${Math.floor(userRecord.workEndTime.getTime()/1000)}:R>. Tell them to get back to the fryer!`);
+            let totalReward = 0;
+            let claimedAvatars = 0;
+            let stillWorking = 0;
+            const now = new Date();
+            let desc = '';
+
+            for (const [avatarId, endTime] of userRecord.activeWorkJobs.entries()) {
+                if (now >= endTime) {
+                    const model = gachaPool.find(m => m.id === avatarId);
+                    const power = model ? (model.power || 50) : 50;
+                    
+                    const multiplier = 1 + Math.random();
+                    const rewardCoins = Math.floor(power * multiplier);
+
+                    totalReward += rewardCoins;
+                    claimedAvatars += 1;
+                    userRecord.activeWorkJobs.delete(avatarId);
+                    desc += `✅ **${model ? model.name : 'Unknown'}** earned **🪙 ${rewardCoins} Coins**\n`;
+                } else {
+                    stillWorking += 1;
+                }
             }
 
-            const model = gachaPool.find(m => m.id === userRecord.workingAvatar);
-            const power = model ? (model.power || 50) : 50;
-            
-            // Calculate reward: power * random multiplier (e.g., 1x to 2x)
-            const multiplier = 1 + Math.random();
-            const rewardCoins = Math.floor(power * multiplier);
+            if (claimedAvatars === 0) {
+                return interaction.editReply(`⏳ Your avatars are still suffering through their shifts! (${stillWorking} working). Tell them to get back to the fryer!`);
+            }
 
-            userRecord.coins += rewardCoins;
-            userRecord.workingAvatar = null;
-            userRecord.workEndTime = null;
-            userRecord.markModified('workingAvatar');
-            userRecord.markModified('workEndTime');
+            userRecord.coins += totalReward;
+            userRecord.markModified('activeWorkJobs');
             await userRecord.save();
 
             const embed = new EmbedBuilder()
                 .setColor(0x2ecc71)
                 .setTitle('🍟 Minimum Wage Acquired!')
-                .setDescription(`Your avatar ${model ? `**${model.name}**` : ''} finished flipping burgers, survived the Karen encounters, and earned a measly **🪙 ${rewardCoins} Coins**!\n\nNew Balance: **🪙 ${userRecord.coins}**\n\nNow get back to the fryer wagie!`);
-
-            if (model) embed.setThumbnail(model.image);
+                .setDescription(desc + `\n**Total Earned:** 🪙 ${totalReward} Coins\n*You have ${stillWorking} avatar(s) still working.*\n\nNew Balance: **🪙 ${userRecord.coins}**\n\nNow get back to the fryer wagie!`);
 
             return interaction.editReply({ embeds: [embed] });
         } catch (err) {
