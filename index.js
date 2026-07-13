@@ -2784,6 +2784,14 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`❌ You do not own an avatar with the ID \`${avatarId}\`! Check your \`/inventory\`.`);
             }
 
+            // Check if avatar is in jail
+            if (userRecord.avatarJailTime && userRecord.avatarJailTime.get(avatarId)) {
+                const jailReleaseDate = userRecord.avatarJailTime.get(avatarId);
+                if (jailReleaseDate > new Date()) {
+                    return interaction.editReply(`🚓 **Busted!** You cannot sell an avatar that is currently serving time in jail! They will be released <t:${Math.floor(jailReleaseDate.getTime()/1000)}:R>.`);
+                }
+            }
+
             const model = gachaPool.find(m => m.id === avatarId);
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
 
@@ -3220,8 +3228,19 @@ client.on('interactionCreate', async (interaction) => {
             if (!senderRecord || !senderRecord.inventory.includes(giveId)) {
                 return interaction.editReply(`❌ You do not own an avatar with the ID \`${giveId}\`!`);
             }
+            if (senderRecord.avatarJailTime && senderRecord.avatarJailTime.get(giveId)) {
+                if (senderRecord.avatarJailTime.get(giveId) > new Date()) {
+                    return interaction.editReply(`🚓 **Busted!** Your avatar \`${giveId}\` is currently serving time in jail! You cannot trade them.`);
+                }
+            }
+
             if (!targetRecord || !targetRecord.inventory.includes(receiveId)) {
                 return interaction.editReply(`❌ <@${targetUser.id}> does not own an avatar with the ID \`${receiveId}\`!`);
+            }
+            if (targetRecord.avatarJailTime && targetRecord.avatarJailTime.get(receiveId)) {
+                if (targetRecord.avatarJailTime.get(receiveId) > new Date()) {
+                    return interaction.editReply(`🚓 **Busted!** <@${targetUser.id}>'s avatar \`${receiveId}\` is currently serving time in jail! They cannot be traded.`);
+                }
             }
 
             const embed = new EmbedBuilder()
