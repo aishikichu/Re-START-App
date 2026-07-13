@@ -2951,6 +2951,8 @@ client.on('interactionCreate', async (interaction) => {
             userRecord.coins += rewardCoins;
             userRecord.workingAvatar = null;
             userRecord.workEndTime = null;
+            userRecord.markModified('workingAvatar');
+            userRecord.markModified('workEndTime');
             await userRecord.save();
 
             const embed = new EmbedBuilder()
@@ -2996,8 +2998,8 @@ client.on('interactionCreate', async (interaction) => {
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
 
             const power = model ? (model.power || 50) : 50;
-            const win = Math.random() < 0.5; // 50/50 chance
-            
+            const win = Math.random() < 0.4; // 40% chance
+
             const jobs = [
                 "robbing a bank",
                 "selling highly illegal virtual weed",
@@ -3025,9 +3027,10 @@ client.on('interactionCreate', async (interaction) => {
 
                 return interaction.editReply({ embeds: [embed] });
             } else {
-                // Fail! (Flat fine and 3-day jail time)
-                const fine = 500;
-                userRecord.coins = Math.max(0, userRecord.coins - fine); // Don't let it go below 0
+                // Fail! (Massive fine putting them in debt and 3-day jail time)
+                const fineMultiplier = 15 + (Math.random() * 10); // 15x to 25x power fine
+                const fine = Math.floor(power * fineMultiplier);
+                userRecord.coins -= fine; // CAN GO INTO DEBT!
                 
                 const jailDays = 3;
                 const releaseDate = new Date(Date.now() + jailDays * 24 * 60 * 60 * 1000);
