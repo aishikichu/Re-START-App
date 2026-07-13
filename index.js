@@ -316,6 +316,16 @@ const slashCommands = [
         .setName('purge')
         .setDescription('🔥 Wipe all inventories and coins (Developer only)'),
 
+    // ── Lists (Admin only) ────────────────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('playerlist')
+        .setDescription('📜 View a list of all players in the database')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    new SlashCommandBuilder()
+        .setName('gachapoollist')
+        .setDescription('📜 View a list of all avatars in the Gacha pool')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+
     // ── Roles (Admin only) ────────────────────────────────────────────────────
     new SlashCommandBuilder()
         .setName('setuproles')
@@ -1123,6 +1133,24 @@ client.on('interactionCreate', async (interaction) => {
         data.activeEvent = null;
         saveData(data);
         return interaction.reply(`🛑 **EVENT CLOSED!** Custom submissions are now closed.`);
+    }
+
+    if (commandName === 'playerlist') {
+        await interaction.deferReply({ ephemeral: true });
+        const users = await User.find({}).sort({ level: -1, xp: -1 });
+        const text = users.map((u, i) => `${i + 1}. ${u.userId} (Lvl ${u.level} | ${u.xp} XP)`).join('\n');
+        const buffer = Buffer.from(text, 'utf-8');
+        const attachment = new AttachmentBuilder(buffer, { name: 'playerlist.txt' });
+        return interaction.editReply({ content: `📜 Here is the list of ${users.length} players:`, files: [attachment] });
+    }
+
+    if (commandName === 'gachapoollist') {
+        await interaction.deferReply({ ephemeral: true });
+        const items = gachaPool;
+        const text = items.map((g, i) => `${i + 1}. [${g.id}] ${g.name} (${g.rarity}) - Val: ${g.value}`).join('\n');
+        const buffer = Buffer.from(text, 'utf-8');
+        const attachment = new AttachmentBuilder(buffer, { name: 'gachapoollist.txt' });
+        return interaction.editReply({ content: `📜 Here is the list of ${items.length} avatars in the Gacha Pool:`, files: [attachment] });
     }
 
     if (commandName === 'submitavatar') {
