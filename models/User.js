@@ -31,7 +31,15 @@ const userSchema = new mongoose.Schema({
     workSlots: { type: Number, default: 1 }, // Max concurrent work shifts
     activeWorkJobs: { type: Map, of: Date, default: {} }, // Map of avatar ID to work end time
     avatarJailTime: { type: Map, of: Date, default: {} }, // Map of avatar ID to jail release Date
-    lastRiskyWorkTime: { type: Date, default: null } // Global user cooldown for riskywork
+    avatarRestTime: { type: Map, of: Date, default: {} }, // Map of avatar ID to rest completion Date
+    avatarStats: { type: Map, of: Object, default: {} }, // Map of avatar ID to { endurance, speed, luck } (Levels)
+    lastRiskyWorkTime: { type: Date, default: null }, // Global user cooldown for riskywork
+    activeRiskyJobs: { type: Map, of: Date, default: {} }, // Map of avatar ID to risky job end time
+    inventoryItems: { type: Map, of: Number, default: {} }, // Consumable items
+    activeLuckBoost: { type: Date, default: null }, // Expiration of lucky charm
+    avatarAscension: { type: Map, of: Number, default: {} }, // Map of avatar ID to ascension level
+    dailyQuests: { type: Array, default: [] }, // Daily quests array
+    questsGeneratedAt: { type: Date, default: null } // Timestamp when quests were last generated
 });
 
 module.exports = mongoose.model('User', userSchema);

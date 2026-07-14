@@ -23,6 +23,7 @@ const express = require('express');
 const app = express();
 const Filter = require('bad-words');
 const activeTradeSessions = new Map(); // Store trade session data
+const activeDuels = new Map(); // Store pending PvP duels
 const activeClaimLocks = new Set(); // Prevent race conditions on buttons
 const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
@@ -51,6 +52,7 @@ const WORK_CHANNEL_ID = '1526232094529814752';
 const SHOP_CHANNEL_ID = '1525685955212869804';
 const TRADING_CHANNEL_ID = '1525718530115375185';
 const INFO_CHANNEL_ID = '1525718674890166454';
+const PVP_CHANNEL_ID = '1526420449926447255';
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 const client = new Client({
@@ -189,17 +191,17 @@ const slashCommands = [
         .setName('coinflip')
         .setDescription('🪙 Flip a coin and bet some coins!')
         .addStringOption(opt => opt.setName('choice').setDescription('Heads or tails').setRequired(false).addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' }))
-        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount of coins to bet').setRequired(false).setMinValue(1).setMaxValue(3500)),
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount of coins to bet (Max: 3500)').setRequired(false).setMinValue(1).setMaxValue(3500)),
 
     new SlashCommandBuilder()
         .setName('blackjack')
         .setDescription('🃏 Play a game of Blackjack against the bot!')
-        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1).setMaxValue(3500)),
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet (Max: 3500)').setRequired(true).setMinValue(1).setMaxValue(3500)),
 
     new SlashCommandBuilder()
         .setName('roulette')
         .setDescription('🎡 Bet on the roulette wheel!')
-        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet').setRequired(true).setMinValue(1).setMaxValue(500))
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet (Max: 500)').setRequired(true).setMinValue(1).setMaxValue(500))
         .addStringOption(opt => opt.setName('color').setDescription('Color to bet on').setRequired(true).addChoices(
             { name: 'Red (2x)', value: 'red' },
             { name: 'Black (2x)', value: 'black' },
@@ -245,10 +247,13 @@ const slashCommands = [
         .setName('daily')
         .setDescription('Claim your free daily coins!'),
     new SlashCommandBuilder()
+        .setName('quests')
+        .setDescription('View and claim rewards for your Daily Quests!'),
+    new SlashCommandBuilder()
         .setName('slots')
         .setDescription('Bet your coins on the slot machine!')
         .addIntegerOption(opt => 
-            opt.setName('bet').setDescription('Amount of coins to bet').setRequired(true).setMinValue(1).setMaxValue(700)),
+            opt.setName('bet').setDescription('Amount of coins to bet (Max: 700)').setRequired(true).setMinValue(1).setMaxValue(700)),
     new SlashCommandBuilder()
         .setName('give')
         .setDescription('Give coins to another user')
@@ -276,6 +281,9 @@ const slashCommands = [
                 { name: '🎟️ Gacha Token', value: 'token' },
                 { name: '⚡ XP Booster', value: 'xpboost' },
                 { name: '🌟 VIP Pass', value: 'vip' },
+                { name: '☕ Energy Drink', value: 'energy_drink' },
+                { name: '💳 Bribe (Get Out of Jail)', value: 'bribe' },
+                { name: '🍀 Lucky Charm', value: 'lucky_charm' },
                 { name: '💼 Work Slot', value: 'work_slot' },
                 { name: '🎨 Color 1', value: 'color1' },
                 { name: '🎨 Color 2', value: 'color2' },
@@ -284,6 +292,17 @@ const slashCommands = [
             ))
         .addIntegerOption(opt =>
             opt.setName('amount').setDescription('Amount to buy (for tokens only)').setRequired(false).setMinValue(1)),
+    new SlashCommandBuilder()
+        .setName('use')
+        .setDescription('Use a consumable item from your inventory')
+        .addStringOption(opt => 
+            opt.setName('item').setDescription('Item to use').setRequired(true).addChoices(
+                { name: '☕ Energy Drink', value: 'energy_drink' },
+                { name: '💳 Bribe (Get Out of Jail)', value: 'bribe' },
+                { name: '🍀 Lucky Charm', value: 'lucky_charm' }
+            ))
+        .addStringOption(opt =>
+            opt.setName('avatar_id').setDescription('Target avatar ID (for Energy Drink or Bribe)').setRequired(false)),
     new SlashCommandBuilder()
         .setName('gacha')
         .setDescription('Spend 1 Gacha Token to roll for a Booth Avatar!'),
@@ -297,6 +316,11 @@ const slashCommands = [
         .setDescription('Look up a specific avatar to see its stats and who owns it')
         .addStringOption(opt =>
             opt.setName('avatar_id').setDescription('The ID of the avatar').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('ascend')
+        .setDescription('Consume 5 duplicates of an avatar to permanently increase its base power by 20%')
+        .addStringOption(opt =>
+            opt.setName('avatar_id').setDescription('The ID of the avatar to ascend').setRequired(true)),
     new SlashCommandBuilder()
         .setName('upgrade')
         .setDescription('Upgrade an avatar\'s RPG stats using Affinity and Coins')
@@ -454,6 +478,12 @@ const slashCommands = [
             { name: 'Level / XP', value: 'level' },
             { name: 'Avatars Owned', value: 'avatars' }
         )),
+    new SlashCommandBuilder()
+        .setName('duel')
+        .setDescription('Challenge another user to a PvP Avatar Duel!')
+        .addUserOption(opt => opt.setName('opponent').setDescription('The user you want to duel').setRequired(true))
+        .addIntegerOption(opt => opt.setName('bet').setDescription('Amount of coins to bet (1,000 - 50,000)').setRequired(true).setMinValue(1000).setMaxValue(50000))
+        .addStringOption(opt => opt.setName('avatar_id').setDescription('ID of your avatar fighter').setRequired(true)),
     new SlashCommandBuilder()
         .setName('updateinfo')
         .setDescription('[DEV] Update the INFO channel message'),
@@ -1276,6 +1306,7 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             await claimerRecord.save();
+            await incrementQuestProgress(interaction.user.id, 'chat_drops', 1);
 
             const disabledButton = new ButtonBuilder()
                 .setCustomId('drop_claimed')
@@ -1296,7 +1327,158 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: '❌ Error claiming drop!', flags: 64 });
         }
     }
+    // ── Button: Accept Duel ───────────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId.startsWith('acceptduel_')) {
+        const duelId = interaction.customId.replace('acceptduel_', '');
+        const duelData = activeDuels.get(duelId);
+        
+        if (!duelData) {
+            return interaction.reply({ content: '❌ This duel challenge has expired or was already completed!', flags: 64 });
+        }
+        
+        if (interaction.user.id !== duelData.opponentId) {
+            return interaction.reply({ content: '❌ You are not the opponent for this duel!', flags: 64 });
+        }
+        
+        if (Date.now() > duelData.expiresAt.getTime()) {
+            activeDuels.delete(duelId);
+            return interaction.reply({ content: '❌ This duel challenge has expired!', flags: 64 });
+        }
 
+        // Pop Modal
+        const modal = new ModalBuilder()
+            .setCustomId(`modal_duel_accept_${duelId}`)
+            .setTitle('Choose Your Fighter');
+
+        const avatarInput = new TextInputBuilder()
+            .setCustomId('avatar_id')
+            .setLabel("Enter the Avatar ID you want to fight with")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        const row = new ActionRowBuilder().addComponents(avatarInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+    }
+
+    // ── Modal Submit: Accept Duel ─────────────────────────────────────────────
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_duel_accept_')) {
+        const duelId = interaction.customId.replace('modal_duel_accept_', '');
+        const duelData = activeDuels.get(duelId);
+        
+        if (!duelData) {
+            return interaction.reply({ content: '❌ This duel challenge has expired or was already completed!', flags: 64 });
+        }
+        
+        const opponentAvatarId = interaction.fields.getTextInputValue('avatar_id').toLowerCase();
+        
+        await interaction.deferReply();
+        
+        try {
+            let opponentRecord = await User.findOne({ userId: interaction.user.id });
+            if (!opponentRecord || opponentRecord.coins < duelData.bet) {
+                return interaction.editReply(`❌ You don't have enough coins! You need **🪙 ${duelData.bet}**.`);
+            }
+            if (!opponentRecord.inventory.includes(opponentAvatarId)) {
+                return interaction.editReply(`❌ You don't own the avatar \`${opponentAvatarId}\`!`);
+            }
+            
+            // Check availability
+            if (opponentRecord.avatarJailTime && opponentRecord.avatarJailTime.has(opponentAvatarId) && opponentRecord.avatarJailTime.get(opponentAvatarId) > new Date()) {
+                return interaction.editReply(`❌ That avatar is currently in Jail!`);
+            }
+            if (opponentRecord.activeWorkJobs && opponentRecord.activeWorkJobs.has(opponentAvatarId) && opponentRecord.activeWorkJobs.get(opponentAvatarId) > new Date()) {
+                return interaction.editReply(`❌ That avatar is currently working!`);
+            }
+            if (opponentRecord.avatarRestTime && opponentRecord.avatarRestTime.has(opponentAvatarId) && opponentRecord.avatarRestTime.get(opponentAvatarId) > new Date()) {
+                return interaction.editReply(`❌ That avatar is currently resting in the hospital!`);
+            }
+            
+            const opponentModel = gachaPool.find(m => m.id === opponentAvatarId);
+            if (!opponentModel) return interaction.editReply('❌ Avatar ID does not exist!');
+
+            const challengerModel = gachaPool.find(m => m.id === duelData.challengerAvatar);
+            
+            // Deduct coins
+            opponentRecord.coins -= duelData.bet;
+            await opponentRecord.save();
+            
+            // Get Challenger Record
+            let challengerRecord = await User.findOne({ userId: duelData.challengerId });
+            
+            // Calculate CP
+            const getCP = (record, avatarId, model) => {
+                let cp = model.power || 50;
+                const ascLevel = record.avatarAscension ? (record.avatarAscension.get(avatarId) || 0) : 0;
+                if (ascLevel > 0) cp = Math.floor(cp * (1 + (0.20 * ascLevel)));
+                let luckLevel = 1;
+                if (record.avatarStats && record.avatarStats.has(avatarId)) {
+                    const stats = record.avatarStats.get(avatarId);
+                    if (stats && stats.luck) luckLevel = stats.luck;
+                }
+                cp += (luckLevel - 1) * 2; // small flat boost for luck
+                return cp;
+            };
+            
+            const challengerCP = getCP(challengerRecord, duelData.challengerAvatar, challengerModel);
+            const opponentCP = getCP(opponentRecord, opponentAvatarId, opponentModel);
+            
+            const totalCP = challengerCP + opponentCP;
+            const roll = Math.random() * totalCP;
+            
+            const challengerWins = roll < challengerCP;
+            const pot = duelData.bet * 2;
+            
+            let winnerId, loserId, winnerAvatar, loserAvatar, winnerModel, loserModel, winnerRecord, loserRecord, winnerCP, loserCP;
+            
+            if (challengerWins) {
+                winnerId = duelData.challengerId; loserId = interaction.user.id;
+                winnerAvatar = duelData.challengerAvatar; loserAvatar = opponentAvatarId;
+                winnerModel = challengerModel; loserModel = opponentModel;
+                winnerRecord = challengerRecord; loserRecord = opponentRecord;
+                winnerCP = challengerCP; loserCP = opponentCP;
+            } else {
+                winnerId = interaction.user.id; loserId = duelData.challengerId;
+                winnerAvatar = opponentAvatarId; loserAvatar = duelData.challengerAvatar;
+                winnerModel = opponentModel; loserModel = challengerModel;
+                winnerRecord = opponentRecord; loserRecord = challengerRecord;
+                winnerCP = opponentCP; loserCP = challengerCP;
+            }
+            
+            // Reward Winner
+            winnerRecord.coins += pot;
+            await winnerRecord.save();
+            
+            // Penalize Loser (Hospital for 2 hours)
+            if (!loserRecord.avatarRestTime) loserRecord.avatarRestTime = new Map();
+            const restEnd = new Date(Date.now() + 2 * 60 * 60 * 1000);
+            loserRecord.avatarRestTime.set(loserAvatar, restEnd);
+            loserRecord.markModified('avatarRestTime');
+            await loserRecord.save();
+            
+            activeDuels.delete(duelId); // Clear session
+            
+            // Disable original accept button message
+            const disabledRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('duel_finished').setLabel('Duel Finished').setStyle(ButtonStyle.Secondary).setDisabled(true)
+            );
+            try { await interaction.message.edit({ components: [disabledRow] }); } catch (e) {}
+
+            const embed = new EmbedBuilder()
+                .setColor(challengerWins ? 0x3498db : 0xe74c3c)
+                .setTitle('⚔️ BATTLE RESULTS ⚔️')
+                .setDescription(`The dust settles in the arena...\n\n**🥊 MATCHUP:**\n<@${duelData.challengerId}>'s **${challengerModel.name}** (${challengerCP} CP)\n*VS*\n<@${interaction.user.id}>'s **${opponentModel.name}** (${opponentCP} CP)\n\n**🏆 WINNER:** <@${winnerId}>!\n**${winnerModel.name}** landed the final blow! <@${winnerId}> wins the pot of **🪙 ${pot} Coins**!\n\n**💀 DEFEATED:**\n<@${loserId}>'s **${loserModel.name}** was beaten senseless and has been sent to the hospital to recover for 2 hours!`)
+                .setThumbnail(winnerModel.image);
+                
+            return interaction.editReply({ content: `<@${duelData.challengerId}> <@${interaction.user.id}>`, embeds: [embed] });
+            
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error resolving duel!');
+        }
+    }
     // ── Button: Trade Accept/Decline ──────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('trade_')) {
         const parts = interaction.customId.split('_');
@@ -1920,6 +2102,73 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    // ── /quests ───────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'quests') {
+        await interaction.deferReply();
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) userRecord = new User({ userId: interaction.user.id });
+
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const lastGen = userRecord.questsGeneratedAt ? new Date(userRecord.questsGeneratedAt.getFullYear(), userRecord.questsGeneratedAt.getMonth(), userRecord.questsGeneratedAt.getDate()) : null;
+            
+            // If quests weren't generated today, generate them
+            if (!lastGen || lastGen.getTime() !== today.getTime()) {
+                const questPool = [
+                    { type: 'gambling_win', desc: 'Win 500 coins from gambling', target: 500, reward: 2000 },
+                    { type: 'work', desc: 'Send 2 avatars to work', target: 2, reward: 3000 },
+                    { type: 'risky_work', desc: 'Complete 1 Risky Work', target: 1, reward: 5000 },
+                    { type: 'chat_drops', desc: 'Claim 2 Chat Drops', target: 2, reward: 1500 },
+                    { type: 'ascend', desc: 'Ascend an Avatar', target: 1, reward: 10000 }
+                ];
+                
+                // Pick 3 random quests
+                const shuffled = questPool.sort(() => 0.5 - Math.random());
+                userRecord.dailyQuests = shuffled.slice(0, 3).map(q => ({ ...q, progress: 0, completed: false }));
+                userRecord.questsGeneratedAt = now;
+                await userRecord.save();
+            }
+
+            // Check for completed quests that haven't been claimed yet
+            let totalReward = 0;
+            let updated = false;
+            for (let q of userRecord.dailyQuests) {
+                if (q.progress >= q.target && !q.completed) {
+                    q.completed = true;
+                    totalReward += q.reward;
+                    updated = true;
+                }
+            }
+
+            if (updated) {
+                userRecord.coins += totalReward;
+                userRecord.markModified('dailyQuests');
+                await userRecord.save();
+            }
+
+            // Display quests
+            const embed = new EmbedBuilder()
+                .setColor('#3498db')
+                .setTitle('📜 Daily Quests')
+                .setDescription('Complete these quests to earn extra coins! Quests reset daily at midnight.');
+
+            for (let q of userRecord.dailyQuests) {
+                const status = q.completed ? '✅ **COMPLETED**' : `🔄 ${Math.min(q.progress, q.target)} / ${q.target}`;
+                embed.addFields({ name: q.desc, value: `${status}\nReward: 🪙 ${q.reward}` });
+            }
+
+            if (totalReward > 0) {
+                embed.addFields({ name: '🎉 Rewards Claimed!', value: `You just received **🪙 ${totalReward}** from completed quests!` });
+            }
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error loading quests!');
+        }
+    }
+
     // ── /daily ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'daily') {
         if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
@@ -2051,6 +2300,12 @@ client.on('interactionCreate', async (interaction) => {
             const winnings = bet * multiplier;
             userRecord.coins += winnings;
             await userRecord.save();
+            
+            if (multiplier > 0) {
+                await incrementQuestProgress(interaction.user.id, 'gambling_win', winnings - bet); // Add net win? Or just bet. Let's do `bet`. No, let's just do `winnings` or `bet`. Let's stick to `bet` for consistency. Actually I did `bet` in others.
+                // Wait, if I do `bet`, it's easier. Let's do `bet`.
+                await incrementQuestProgress(interaction.user.id, 'gambling_win', bet);
+            }
 
             const embed = new EmbedBuilder()
                 .setColor(color)
@@ -2159,6 +2414,37 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    async function incrementQuestProgress(userId, questType, amount = 1) {
+        try {
+            let userRecord = await User.findOne({ userId });
+            if (!userRecord || !userRecord.dailyQuests || userRecord.dailyQuests.length === 0) return;
+            
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const lastGen = userRecord.questsGeneratedAt ? new Date(userRecord.questsGeneratedAt.getFullYear(), userRecord.questsGeneratedAt.getMonth(), userRecord.questsGeneratedAt.getDate()) : null;
+            if (!lastGen || lastGen.getTime() !== today.getTime()) return; // Quests are outdated
+            
+            let updated = false;
+            let newQuests = [];
+            for (let q of userRecord.dailyQuests) {
+                if (q.type === questType && !q.completed && q.progress < q.target) {
+                    q.progress += amount;
+                    if (q.progress > q.target) q.progress = q.target;
+                    updated = true;
+                }
+                newQuests.push(q);
+            }
+            
+            if (updated) {
+                userRecord.dailyQuests = newQuests;
+                userRecord.markModified('dailyQuests');
+                await userRecord.save();
+            }
+        } catch (err) {
+            console.error('Error updating quest:', err);
+        }
+    }
+
     function getShopPrices() {
         let data = getData();
         let shop = data.shop || {};
@@ -2253,6 +2539,13 @@ client.on('interactionCreate', async (interaction) => {
             embed.addFields({ name: '🌟 VIP Mode Pass (1 Hour)', value: `${vSoldText}\nGain Double Gacha Luck and 15% Slots Override Chance! ID: \`vip\`` });
         }
 
+        embed.addFields({ name: '--- Consumables ---', value: '\u200B' });
+        embed.addFields(
+            { name: '☕ Energy Drink', value: `**Cost:** 🪙 5,000 Coins\nInstantly wakes up a resting avatar. ID: \`energy_drink\`` },
+            { name: '💳 Bribe (Get Out of Jail)', value: `**Cost:** 🪙 25,000 Coins\nBribe the cops to release your avatar. ID: \`bribe\`` },
+            { name: '🍀 Lucky Charm', value: `**Cost:** 🪙 15,000 Coins\n+10% win rate on risky jobs and gambling for 1 hour! ID: \`lucky_charm\`` }
+        );
+
         embed.addFields({ name: '--- Permanent Upgrades ---', value: '\u200B' });
         embed.addFields({ name: '💼 Work Slot Expansion', value: `**Cost:** 🪙 5,000 * Current Slots\nUnlock up to 20 slots to send multiple avatars to work! ID: \`work_slot\`` });
 
@@ -2303,6 +2596,24 @@ client.on('interactionCreate', async (interaction) => {
                 userRecord.activeXpBoost = new Date(Date.now() + 3600000); // 1 hour from now
                 await userRecord.save();
                 return interaction.editReply(`✅ You bought an **⚡ XP Booster**! You will now gain 2x Chat XP for the next hour!`);
+            }
+
+            if (['energy_drink', 'bribe', 'lucky_charm'].includes(itemStr)) {
+                const costs = { 'energy_drink': 5000, 'bribe': 25000, 'lucky_charm': 15000 };
+                const names = { 'energy_drink': '☕ Energy Drink', 'bribe': '💳 Bribe', 'lucky_charm': '🍀 Lucky Charm' };
+                const amount = interaction.options.getInteger('amount') || 1;
+                const totalCost = costs[itemStr] * amount;
+                
+                if (userRecord.coins < totalCost) return interaction.editReply(`❌ You need **🪙 ${totalCost}** for ${amount}x ${names[itemStr]}. You have **🪙 ${userRecord.coins}**.`);
+                
+                userRecord.coins -= totalCost;
+                if (!userRecord.inventoryItems) userRecord.inventoryItems = new Map();
+                const currentAmount = userRecord.inventoryItems.get(itemStr) || 0;
+                userRecord.inventoryItems.set(itemStr, currentAmount + amount);
+                userRecord.markModified('inventoryItems');
+                await userRecord.save();
+                
+                return interaction.editReply(`✅ You bought **${amount}x ${names[itemStr]}** for 🪙 ${totalCost} Coins! You now have ${currentAmount + amount} of them in your inventory.`);
             }
 
             if (itemStr === 'work_slot') {
@@ -2375,6 +2686,72 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ An error occurred while buying the item!');
+        }
+    }
+
+    // ── /use ──────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'use') {
+        const itemStr = interaction.options.getString('item');
+        const avatarIdStr = interaction.options.getString('avatar_id');
+        
+        await interaction.deferReply();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.inventoryItems || !userRecord.inventoryItems.get(itemStr) || userRecord.inventoryItems.get(itemStr) <= 0) {
+                return interaction.editReply(`❌ You don't have any of that item in your inventory! Use \`/buy\` to get some.`);
+            }
+
+            if (itemStr === 'energy_drink') {
+                if (!avatarIdStr) return interaction.editReply(`❌ You must specify an \`avatar_id\` to use the Energy Drink on!`);
+                const avatarId = avatarIdStr.toLowerCase();
+                
+                if (!userRecord.avatarRestTime || !userRecord.avatarRestTime.has(avatarId) || userRecord.avatarRestTime.get(avatarId) <= new Date()) {
+                    return interaction.editReply(`❌ That avatar is not currently resting!`);
+                }
+                
+                userRecord.avatarRestTime.delete(avatarId);
+                userRecord.inventoryItems.set(itemStr, userRecord.inventoryItems.get(itemStr) - 1);
+                userRecord.markModified('avatarRestTime');
+                userRecord.markModified('inventoryItems');
+                await userRecord.save();
+                
+                return interaction.editReply(`✅ You gave **☕ Energy Drink** to the avatar! They are wide awake and ready to work again!`);
+            }
+            
+            if (itemStr === 'bribe') {
+                if (!avatarIdStr) return interaction.editReply(`❌ You must specify an \`avatar_id\` to use the Bribe on!`);
+                const avatarId = avatarIdStr.toLowerCase();
+                
+                if (!userRecord.avatarJailTime || !userRecord.avatarJailTime.has(avatarId) || userRecord.avatarJailTime.get(avatarId) <= new Date()) {
+                    return interaction.editReply(`❌ That avatar is not currently in jail!`);
+                }
+                
+                userRecord.avatarJailTime.delete(avatarId);
+                userRecord.inventoryItems.set(itemStr, userRecord.inventoryItems.get(itemStr) - 1);
+                userRecord.markModified('avatarJailTime');
+                userRecord.markModified('inventoryItems');
+                await userRecord.save();
+                
+                return interaction.editReply(`✅ You used a **💳 Bribe**! The cops looked the other way and your avatar was released from JAIL!`);
+            }
+            
+            if (itemStr === 'lucky_charm') {
+                if (userRecord.activeLuckBoost && userRecord.activeLuckBoost > new Date()) {
+                    return interaction.editReply(`❌ You already have an active Lucky Charm! Wait for it to expire.`);
+                }
+                
+                userRecord.activeLuckBoost = new Date(Date.now() + 3600000); // 1 hour
+                userRecord.inventoryItems.set(itemStr, userRecord.inventoryItems.get(itemStr) - 1);
+                userRecord.markModified('inventoryItems');
+                await userRecord.save();
+                
+                return interaction.editReply(`✅ You equipped the **🍀 Lucky Charm**! You now have a +10% win rate on gambling and risky jobs for the next hour!`);
+            }
+
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred while using the item!');
         }
     }
 
@@ -2685,9 +3062,9 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /inventory ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'inventory') {
-        const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID];
+        const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID, PVP_CHANNEL_ID];
         if (!allowedChannels.includes(interaction.channelId)) {
-            return interaction.reply({ content: `⚠️ Please use inventory commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, or <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Please use inventory commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, <#${TRADING_CHANNEL_ID}>, or <#${PVP_CHANNEL_ID}>!`, flags: 64 });
         }
         
         const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -2838,6 +3215,51 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error looking up avatar!');
+        }
+    }
+
+    // ── /ascend ───────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'ascend') {
+        const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID];
+        if (!allowedChannels.includes(interaction.channelId)) return interaction.reply({ content: `⚠️ Please use ascend commands in <#${REBOOTH_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || !userRecord.inventory.includes(avatarId)) {
+                return interaction.editReply(`❌ You don't own the avatar \`${avatarId}\`!`);
+            }
+            
+            const duplicates = userRecord.avatarAffinity ? (userRecord.avatarAffinity.get(avatarId) || 0) : 0;
+            if (duplicates < 5) {
+                return interaction.editReply(`❌ You need **5 duplicates** of \`${avatarId}\` to ascend them. You currently have **${duplicates}**.`);
+            }
+            
+            const model = gachaPool.find(m => m.id === avatarId);
+            
+            // Perform ascension
+            userRecord.avatarAffinity.set(avatarId, duplicates - 5);
+            if (!userRecord.avatarAscension) userRecord.avatarAscension = new Map();
+            const currentLevel = userRecord.avatarAscension.get(avatarId) || 0;
+            userRecord.avatarAscension.set(avatarId, currentLevel + 1);
+            
+            userRecord.markModified('avatarAffinity');
+            userRecord.markModified('avatarAscension');
+            await userRecord.save();
+            
+            await incrementQuestProgress(interaction.user.id, 'ascend', 1);
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xffd700)
+                .setTitle(`🌟 Avatar Ascended! 🌟`)
+                .setDescription(`You have ascended **${model ? model.name : avatarId}** to **Ascension Level ${currentLevel + 1}**!\n\nThey now have a permanent +20% bonus to their Power!`);
+                
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ An error occurred during ascension!');
         }
     }
 
@@ -3087,6 +3509,7 @@ client.on('interactionCreate', async (interaction) => {
             userRecord.activeWorkJobs.set(avatarId, endTime);
             userRecord.markModified('activeWorkJobs');
             await userRecord.save();
+            await incrementQuestProgress(interaction.user.id, 'work', 1);
 
             const embed = new EmbedBuilder()
                 .setColor(0x3498db)
@@ -3121,8 +3544,11 @@ client.on('interactionCreate', async (interaction) => {
             }
             // -----------------------
 
-            if (!userRecord.activeWorkJobs || userRecord.activeWorkJobs.size === 0) {
-                return interaction.editReply(`❌ You don't have any avatars currently flipping burgers! Use \`/work [avatar_id]\` to send them to the grease pits.`);
+            const hasNormalWork = userRecord.activeWorkJobs && userRecord.activeWorkJobs.size > 0;
+            const hasRiskyWork = userRecord.activeRiskyJobs && userRecord.activeRiskyJobs.size > 0;
+
+            if (!hasNormalWork && !hasRiskyWork) {
+                return interaction.editReply(`❌ You don't have any avatars currently working or doing risky jobs!`);
             }
 
             let totalReward = 0;
@@ -3132,11 +3558,32 @@ client.on('interactionCreate', async (interaction) => {
             let desc = '';
 
             if (!userRecord.avatarRestTime) userRecord.avatarRestTime = new Map();
-
-            for (const [avatarId, endTime] of userRecord.activeWorkJobs.entries()) {
-                if (now >= endTime) {
+            
+            // Process normal jobs
+            if (hasNormalWork) {
+                const finishedAvatars = [];
+                for (const [avatarId, endTime] of userRecord.activeWorkJobs.entries()) {
+                    if (now >= endTime) {
+                        finishedAvatars.push(avatarId);
+                    } else {
+                        stillWorking += 1;
+                    }
+                }
+                
+                // Calculate synergy multipliers by rarity
+                const rarityCounts = {};
+                for (const avatarId of finishedAvatars) {
                     const model = gachaPool.find(m => m.id === avatarId);
-                    const power = model ? (model.power || 50) : 50;
+                    if (model && model.rarity) {
+                        rarityCounts[model.rarity] = (rarityCounts[model.rarity] || 0) + 1;
+                    }
+                }
+
+                for (const avatarId of finishedAvatars) {
+                    const model = gachaPool.find(m => m.id === avatarId);
+                    let power = model ? (model.power || 50) : 50;
+                    const ascLevel = userRecord.avatarAscension ? (userRecord.avatarAscension.get(avatarId) || 0) : 0;
+                    if (ascLevel > 0) power = Math.floor(power * (1 + (0.20 * ascLevel)));
                     
                     // Get Luck and Endurance Stats
                     let luckLevel = 1;
@@ -3151,7 +3598,15 @@ client.on('interactionCreate', async (interaction) => {
 
                     // Luck stat increases the multiplier max (+0.05 per level)
                     const luckBonus = (luckLevel - 1) * 0.05;
-                    const multiplier = 1 + Math.random() + luckBonus;
+                    let multiplier = 1 + Math.random() + luckBonus;
+                    
+                    // --- SYNERGY BONUS ---
+                    let synergyBonus = 0;
+                    if (model && model.rarity && rarityCounts[model.rarity] > 1) {
+                        synergyBonus = (rarityCounts[model.rarity] - 1) * 0.15; // +15% per additional matching rarity
+                        multiplier += synergyBonus;
+                    }
+
                     const rewardCoins = Math.floor(power * multiplier);
 
                     // Set resting phase (base 2 hours, minus 10 mins per endurance level, max reduction 1h 40m)
@@ -3166,25 +3621,96 @@ client.on('interactionCreate', async (interaction) => {
                     userRecord.activeWorkJobs.delete(avatarId);
                     
                     const restTimeStr = restDurationMinutes >= 60 ? `${Math.floor(restDurationMinutes/60)}h ${restDurationMinutes%60}m` : `${restDurationMinutes}m`;
-                    desc += `✅ **${model ? model.name : 'Unknown'}** earned **🪙 ${rewardCoins} Coins** (Resting: ${restTimeStr})\n`;
-                } else {
-                    stillWorking += 1;
+                    const synergyText = synergyBonus > 0 ? ` 💫 *(+${Math.floor(synergyBonus*100)}% Synergy)*` : '';
+                    desc += `✅ **${model ? model.name : 'Unknown'}** earned **🪙 ${rewardCoins} Coins**${synergyText} (Resting: ${restTimeStr})\n`;
+                }
+            }
+
+            // Process risky jobs
+            let totalRiskyFines = 0;
+            if (hasRiskyWork) {
+                for (const [avatarId, endTime] of userRecord.activeRiskyJobs.entries()) {
+                    if (now >= endTime) {
+                        const model = gachaPool.find(m => m.id === avatarId);
+                        let power = model ? (model.power || 50) : 50;
+                        const ascLevel = userRecord.avatarAscension ? (userRecord.avatarAscension.get(avatarId) || 0) : 0;
+                        if (ascLevel > 0) power = Math.floor(power * (1 + (0.20 * ascLevel)));
+
+                        // Get Luck Stat
+                        let luckLevel = 1;
+                        if (userRecord.avatarStats && userRecord.avatarStats.has(avatarId)) {
+                            const stats = userRecord.avatarStats.get(avatarId);
+                            if (stats && stats.luck) luckLevel = stats.luck;
+                        }
+
+                        let winChance = 0.10;
+                        if (model && model.rarity === 'UR') winChance = 0.10;
+                        else if (model && model.rarity === 'SR') winChance = 0.12;
+                        else if (model && model.rarity === 'R') winChance = 0.14;
+                        else if (model && model.rarity === 'C') winChance = 0.16;
+
+                        winChance += (luckLevel - 1) * 0.01;
+                        if (userRecord.activeLuckBoost && new Date(userRecord.activeLuckBoost) > new Date()) {
+                            winChance += 0.10; // +10% from Lucky Charm
+                        }
+                        const win = Math.random() < winChance;
+
+                        const jobs = [
+                            "robbing a bank",
+                            "selling highly illegal virtual weed",
+                            "stealing Booth assets",
+                            "running an underground casino",
+                            "smuggling waifu pillows across the border",
+                            "hosting an illegal rave",
+                            "doing shady VRchat deals in a back alley",
+                            "hacking the Re:START mainframe"
+                        ];
+                        const job = jobs[Math.floor(Math.random() * jobs.length)];
+
+                        if (win) {
+                            const multiplier = 5 + (Math.random() * 3);
+                            const rewardCoins = Math.floor(power * multiplier);
+                            totalReward += rewardCoins;
+                            desc += `🕵️ **${model ? model.name : 'Unknown'}** pulled off **${job}** and snagged **🪙 ${rewardCoins} Coins**!\n`;
+                        } else {
+                            const fineMultiplier = 15 + (Math.random() * 10);
+                            const fine = Math.floor(power * fineMultiplier);
+                            totalRiskyFines += fine;
+                            
+                            const jailDays = 3;
+                            const releaseDate = new Date(Date.now() + jailDays * 24 * 60 * 60 * 1000);
+                            
+                            if (!userRecord.avatarJailTime) userRecord.avatarJailTime = new Map();
+                            userRecord.avatarJailTime.set(avatarId, releaseDate);
+
+                            desc += `🚓 **BUSTED!** **${model ? model.name : 'Unknown'}** got caught **${job}**! Fined **🪙 ${fine} Coins** and thrown in JAIL for ${jailDays} days!\n`;
+                        }
+
+                        claimedAvatars += 1;
+                        userRecord.activeRiskyJobs.delete(avatarId);
+                    } else {
+                        stillWorking += 1;
+                    }
                 }
             }
 
             if (claimedAvatars === 0) {
-                return interaction.editReply(`⏳ Your avatars are still suffering through their shifts! (${stillWorking} working). Tell them to get back to the fryer!`);
+                return interaction.editReply(`⏳ Your avatars are still suffering through their shifts! (${stillWorking} working). Tell them to get back to work!`);
             }
 
             userRecord.coins += totalReward;
-            userRecord.markModified('activeWorkJobs');
+            userRecord.coins -= totalRiskyFines; // Subtract fines
+            
+            if (hasNormalWork) userRecord.markModified('activeWorkJobs');
+            if (hasRiskyWork) userRecord.markModified('activeRiskyJobs');
             userRecord.markModified('avatarRestTime');
+            userRecord.markModified('avatarJailTime');
             await userRecord.save();
 
             const embed = new EmbedBuilder()
-                .setColor(0x2ecc71)
-                .setTitle('🍟 Minimum Wage Acquired!')
-                .setDescription(desc + `\n**Total Earned:** 🪙 ${totalReward} Coins\n*You have ${stillWorking} avatar(s) still working.*\n\nNew Balance: **🪙 ${userRecord.coins}**\n\nNow get back to the fryer wagie!`);
+                .setColor(totalRiskyFines > 0 ? 0xe74c3c : 0x2ecc71)
+                .setTitle('💼 Shift Completed!')
+                .setDescription(desc + `\n**Total Earned:** 🪙 ${totalReward} Coins\n${totalRiskyFines > 0 ? `**Total Fines:** 🪙 ${totalRiskyFines} Coins\n` : ''}*You have ${stillWorking} avatar(s) still working.*\n\nNew Balance: **🪙 ${userRecord.coins}**\n\nNow get back to the grind!`);
 
             return interaction.editReply({ embeds: [embed] });
         } catch (err) {
@@ -3237,76 +3763,23 @@ client.on('interactionCreate', async (interaction) => {
             const model = gachaPool.find(m => m.id === avatarId);
             if (!model) return interaction.editReply('❌ That avatar ID does not exist in the database!');
 
-            // Get Luck Stat
-            let luckLevel = 1;
-            if (userRecord.avatarStats && userRecord.avatarStats.has(avatarId)) {
-                const stats = userRecord.avatarStats.get(avatarId);
-                if (stats && stats.luck) luckLevel = stats.luck;
-            }
-
-            const power = model ? (model.power || 50) : 50;
-            
-            let winChance = 0.10;
-            if (model.rarity === 'UR') winChance = 0.10;
-            else if (model.rarity === 'SR') winChance = 0.12;
-            else if (model.rarity === 'R') winChance = 0.14;
-            else if (model.rarity === 'C') winChance = 0.16;
-
-            // Luck stat increases win chance (+1% per level)
-            winChance += (luckLevel - 1) * 0.01;
-
-            const win = Math.random() < winChance;
-
             // Set the cooldown timer
             userRecord.lastRiskyWorkTime = new Date();
 
-            const jobs = [
-                "robbing a bank",
-                "selling highly illegal virtual weed",
-                "stealing Booth assets",
-                "running an underground casino",
-                "smuggling waifu pillows across the border",
-                "hosting an illegal rave",
-                "doing shady VRchat deals in a back alley",
-                "hacking the Re:START mainframe"
-            ];
-            const job = jobs[Math.floor(Math.random() * jobs.length)];
+            if (!userRecord.activeRiskyJobs) userRecord.activeRiskyJobs = new Map();
+            const riskyEndTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours timer
+            userRecord.activeRiskyJobs.set(avatarId, riskyEndTime);
+            userRecord.markModified('activeRiskyJobs');
+            await userRecord.save();
+            await incrementQuestProgress(interaction.user.id, 'risky_work', 1);
 
-            if (win) {
-                // Success! (Massive payout, e.g. 5x to 8x power)
-                const multiplier = 5 + (Math.random() * 3);
-                const rewardCoins = Math.floor(power * multiplier);
-                userRecord.coins += rewardCoins;
-                await userRecord.save();
+            const embed = new EmbedBuilder()
+                .setColor(0xf1c40f)
+                .setTitle('🕵️ Risky Job Started!')
+                .setDescription(`**${model.name}** has gone into the underworld to do some risky business...\n\nThey will return <t:${Math.floor(riskyEndTime.getTime()/1000)}:R>. Use \`/claim\` then to see if they pulled it off or got busted by the cops!`)
+                .setThumbnail(model.image);
 
-                const embed = new EmbedBuilder()
-                    .setColor(0x2ecc71)
-                    .setTitle('💸 The Heist was a Success!')
-                    .setDescription(`**${model.name}** successfully pulled off **${job}** without getting caught by the cops!\n\nThey raked in a massive **🪙 ${rewardCoins} Coins**!\n\nNew Balance: **🪙 ${userRecord.coins}**`)
-                    .setThumbnail(model.image);
-
-                return interaction.editReply({ embeds: [embed] });
-            } else {
-                // Fail! (Massive fine putting them in debt and 3-day jail time)
-                const fineMultiplier = 15 + (Math.random() * 10); // 15x to 25x power fine
-                const fine = Math.floor(power * fineMultiplier);
-                userRecord.coins -= fine; // CAN GO INTO DEBT!
-                
-                const jailDays = 3;
-                const releaseDate = new Date(Date.now() + jailDays * 24 * 60 * 60 * 1000);
-                
-                if (!userRecord.avatarJailTime) userRecord.avatarJailTime = new Map();
-                userRecord.avatarJailTime.set(avatarId, releaseDate);
-                await userRecord.save();
-
-                const embed = new EmbedBuilder()
-                    .setColor(0xe74c3c)
-                    .setTitle('🚓 WEE WOO WEE WOO! BUSTED!')
-                    .setDescription(`**${model.name}** got caught **${job}**!\n\nThe police raided the operation! You were fined **🪙 ${fine} Coins** and **${model.name}** was thrown in JAIL for ${jailDays} days!\n\nThey cannot work or do risky jobs until <t:${Math.floor(releaseDate.getTime()/1000)}:R>.\n\nNew Balance: **🪙 ${userRecord.coins}**`)
-                    .setThumbnail(model.image);
-
-                return interaction.editReply({ embeds: [embed] });
-            }
+            return interaction.editReply({ embeds: [embed] });
 
         } catch (err) {
             console.error(err);
@@ -3432,6 +3905,83 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply('❌ Error accessing the marketplace!');
         }
     }
+    // ── /duel ────────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'duel') {
+        if (interaction.channelId !== PVP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take this outside! (Please use <#${PVP_CHANNEL_ID}>)`, flags: 64 });
+        
+        const opponent = interaction.options.getUser('opponent');
+        const bet = interaction.options.getInteger('bet');
+        const avatarId = interaction.options.getString('avatar_id').toLowerCase();
+        
+        if (opponent.id === interaction.user.id) {
+            return interaction.reply({ content: `❌ You can't duel yourself! Go to therapy instead.`, flags: 64 });
+        }
+        if (opponent.bot) {
+            return interaction.reply({ content: `❌ You can't duel bots! They have aimbot.`, flags: 64 });
+        }
+
+        await interaction.deferReply();
+        
+        try {
+            let userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord || userRecord.coins < bet) {
+                return interaction.editReply(`❌ You don't have enough coins for that bet! You need **🪙 ${bet}**.`);
+            }
+            if (!userRecord.inventory.includes(avatarId)) {
+                return interaction.editReply(`❌ You don't own the avatar \`${avatarId}\`!`);
+            }
+            
+            // Check availability
+            if (userRecord.avatarJailTime && userRecord.avatarJailTime.has(avatarId) && userRecord.avatarJailTime.get(avatarId) > new Date()) {
+                return interaction.editReply(`❌ That avatar is currently in Jail!`);
+            }
+            if (userRecord.activeWorkJobs && userRecord.activeWorkJobs.has(avatarId) && userRecord.activeWorkJobs.get(avatarId) > new Date()) {
+                return interaction.editReply(`❌ That avatar is currently working!`);
+            }
+            if (userRecord.avatarRestTime && userRecord.avatarRestTime.has(avatarId) && userRecord.avatarRestTime.get(avatarId) > new Date()) {
+                return interaction.editReply(`❌ That avatar is currently resting!`);
+            }
+            
+            const model = gachaPool.find(m => m.id === avatarId);
+            if (!model) return interaction.editReply('❌ Avatar ID does not exist!');
+
+            // Create duel session
+            const duelId = `duel_${interaction.user.id}_${Date.now()}`;
+            
+            // Deduct coins temporarily
+            userRecord.coins -= bet;
+            await userRecord.save();
+            
+            activeDuels.set(duelId, {
+                challengerId: interaction.user.id,
+                challengerAvatar: avatarId,
+                opponentId: opponent.id,
+                bet: bet,
+                expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 mins to accept
+            });
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle('⚔️ PVP DUEL CHALLENGE!')
+                .setDescription(`<@${opponent.id}>, you have been challenged to a duel by <@${interaction.user.id}>!\n\n**The Stakes:** 🪙 ${bet} Coins\n**Challenger's Fighter:** **${model.name}** [${model.rarity}]\n\nClick the button below to accept and choose your fighter!`)
+                .setThumbnail(model.image)
+                .setFooter({ text: 'You have 5 minutes to accept.' });
+                
+            const acceptBtn = new ButtonBuilder()
+                .setCustomId(`acceptduel_${duelId}`)
+                .setLabel('Accept Duel')
+                .setStyle(ButtonStyle.Danger);
+                
+            const row = new ActionRowBuilder().addComponents(acceptBtn);
+            
+            return interaction.editReply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row] });
+            
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error starting duel!');
+        }
+    }
+
 
     // ── /trade ────────────────────────────────────────────────────────────────
 
@@ -3546,13 +4096,23 @@ client.on('interactionCreate', async (interaction) => {
 
             userRecord.coins -= bet;
             
-            const isHeads = Math.random() < 0.5;
+            let winChance = 0.5;
+            if (userRecord.activeLuckBoost && new Date(userRecord.activeLuckBoost) > new Date()) {
+                winChance = 0.6; // 60% chance to win with lucky charm
+            }
+            
+            // If they have the boost, skew the RNG towards their choice
+            const isHeads = choice === 'heads' 
+                ? (Math.random() < winChance) 
+                : (Math.random() >= winChance);
+                
             const resultLabel = isHeads ? 'heads' : 'tails';
             const resultEmoji = isHeads ? '🪙 Heads' : '🪙 Tails';
             
             if (choice === resultLabel) {
                 userRecord.coins += bet * 2;
                 await userRecord.save();
+                await incrementQuestProgress(interaction.user.id, 'gambling_win', bet);
                 const embed = new EmbedBuilder().setColor(0x2ecc71).setTitle('Coin Flip - WIN!').setDescription(`The coin landed on **${resultEmoji}**!\nYou won **🪙 ${bet}** Coins!\n\nNew Balance: **🪙 ${userRecord.coins}**`);
                 return interaction.editReply({ embeds: [embed] });
             } else {
@@ -3602,6 +4162,7 @@ client.on('interactionCreate', async (interaction) => {
         if (multiplier > 0) {
             userRecord.coins += bet * multiplier;
             await userRecord.save();
+            await incrementQuestProgress(interaction.user.id, 'gambling_win', bet);
             const embed = new EmbedBuilder().setColor(0x2ecc71).setTitle('🎡 Roulette - WIN!').setDescription(`The wheel landed on **${emojiMap[resultColor]}**!\nYou won **🪙 ${bet * (multiplier - 1)}** Coins!\n\nNew Balance: **🪙 ${userRecord.coins}**`);
             return interaction.editReply({ embeds: [embed] });
         } else {
@@ -3648,6 +4209,7 @@ client.on('interactionCreate', async (interaction) => {
         if (pScore === 21) {
             userRecord.coins += Math.floor(bet * 2.5);
             await userRecord.save();
+            await incrementQuestProgress(interaction.user.id, 'gambling_win', bet);
             return interaction.editReply({ content: '🎉 Blackjack!', embeds: [renderEmbed('win', pScore, dScore)] });
         }
         
@@ -3686,6 +4248,7 @@ client.on('interactionCreate', async (interaction) => {
                 if (dScore > 21 || pScore > dScore) {
                     userRecord.coins += bet * 2;
                     await userRecord.save();
+                    await incrementQuestProgress(interaction.user.id, 'gambling_win', bet);
                     resultText = `🎉 You win **🪙 ${bet}** Coins!`;
                     return interaction.editReply({ content: resultText, embeds: [renderEmbed('win', pScore, dScore)], components: [] });
                 } else if (dScore > pScore) {
@@ -4019,8 +4582,8 @@ client.on('messageCreate', async (message) => {
 
         // ─── Random Chat Drops ─────────────────────────────────────────────────────────
         if (message.channelId === ECONOMY_CHANNEL_ID) {
-            // 5% chance per message to trigger a drop
-            if (Math.random() < 0.05) {
+            // 15% chance per message to trigger a drop
+            if (Math.random() < 0.15) {
                 const dropRoll = Math.random();
                 let dropType = 'coins'; // 85% chance
                 if (dropRoll < 0.10) dropType = 'star'; // 10% chance
