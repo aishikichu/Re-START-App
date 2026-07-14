@@ -451,7 +451,8 @@ const slashCommands = [
     new SlashCommandBuilder()
         .setName('fetchavatars')
         .setDescription('[STAFF] Fetch random avatars from Booth for review')
-        .addIntegerOption(opt => opt.setName('amount').setDescription('Number of avatars (max 10)').setRequired(true)),
+        .addIntegerOption(opt => opt.setName('amount').setDescription('Number of avatars (max 10)').setRequired(true))
+        .addStringOption(opt => opt.setName('search').setDescription('Search keyword (optional)').setRequired(false)),
     new SlashCommandBuilder()
         .setName('market')
         .setDescription('Global Avatar Marketplace')
@@ -1879,8 +1880,15 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             const cheerio = require('cheerio');
-            const page = Math.floor(Math.random() * 50) + 1;
-            const res = await fetch(`https://booth.pm/en/search/%E3%82%AA%E3%83%AA%E3%82%B8%E3%83%8A%E3%83%AB3D%E3%83%A2%E3%83%87%E3%83%AB?category_ids%5B%5D=208&sort=wish&page=${page}`);
+            const searchQuery = interaction.options.getString('search');
+            let fetchUrl = '';
+            if (searchQuery) {
+                fetchUrl = `https://booth.pm/en/search/${encodeURIComponent(searchQuery)}?category_ids%5B%5D=208`;
+            } else {
+                const page = Math.floor(Math.random() * 50) + 1;
+                fetchUrl = `https://booth.pm/en/search/%E3%82%AA%E3%83%AA%E3%82%B8%E3%83%8A%E3%83%AB3D%E3%83%A2%E3%83%87%E3%83%AB?category_ids%5B%5D=208&sort=wish&page=${page}`;
+            }
+            const res = await fetch(fetchUrl);
             const html = await res.text();
             const $ = cheerio.load(html);
             const items = $('.item-card').slice(0, amount).toArray();
