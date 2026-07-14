@@ -713,8 +713,8 @@ client.once('ready', async () => {
                 data.nextCardDropTime = now + (Math.floor(Math.random() * 60) + 60) * 60000;
                 saveData(data);
 
-                const ecoChannel = client.channels.cache.get(ECONOMY_CHANNEL_ID); // Fallback to eco channel
-                if (ecoChannel) {
+                const gachaChannel = client.channels.cache.get(REBOOTH_CHANNEL_ID);
+                if (gachaChannel) {
                     const roll = Math.random() * 100;
                     let rarityTarget = 'C';
                     if (roll <= 1) rarityTarget = 'UR';
@@ -739,7 +739,7 @@ client.once('ready', async () => {
                                 .setEmoji('✋');
 
                             const row = new ActionRowBuilder().addComponents(claimButton);
-                            ecoChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                            gachaChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
                         }
                     }
                 }
@@ -820,7 +820,10 @@ client.on('messageCreate', async (message) => {
                     .setEmoji('✋');
 
                 const row = new ActionRowBuilder().addComponents(claimButton);
-                await message.channel.send({ embeds: [embed], components: [row] });
+                const gachaChannel = client.channels.cache.get(REBOOTH_CHANNEL_ID);
+                if (gachaChannel) {
+                    await gachaChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                }
             }
         }
     }
