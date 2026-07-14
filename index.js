@@ -452,7 +452,7 @@ const slashCommands = [
         .setName('fetchavatars')
         .setDescription('[STAFF] Fetch random avatars from Booth for review')
         .addIntegerOption(opt => opt.setName('amount').setDescription('Number of avatars (max 10)').setRequired(true))
-        .addStringOption(opt => opt.setName('search').setDescription('Search keyword (optional)').setRequired(false)),
+        .addStringOption(opt => opt.setName('search_or_link').setDescription('Booth item link OR search keyword').setRequired(false)),
     new SlashCommandBuilder()
         .setName('market')
         .setDescription('Global Avatar Marketplace')
@@ -651,12 +651,12 @@ client.once('ready', async () => {
 
             // --- Star Drop Logic ---
             if (!data.nextStarDrop) {
-                // Initialize next drop to be 5-10 hours from now
-                data.nextStarDrop = now + (Math.floor(Math.random() * 6) + 5) * 3600000;
+                // Initialize next drop to be 2-4 hours from now
+                data.nextStarDrop = now + (Math.floor(Math.random() * 3) + 2) * 3600000;
                 saveData(data);
             } else if (now > data.nextStarDrop) {
                 // Set next drop
-                data.nextStarDrop = now + (Math.floor(Math.random() * 6) + 5) * 3600000;
+                data.nextStarDrop = now + (Math.floor(Math.random() * 3) + 2) * 3600000;
                 saveData(data);
 
                 const ecoChannel = client.channels.cache.get(ECONOMY_CHANNEL_ID);
@@ -675,6 +675,73 @@ client.once('ready', async () => {
 
                     const row = new ActionRowBuilder().addComponents(claimButton);
                     ecoChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                }
+            }
+
+            // --- Time-based Coin Drops ---
+            if (!data.nextCoinDrop) {
+                data.nextCoinDrop = now + (Math.floor(Math.random() * 45) + 45) * 60000; // 45-90 minutes
+                saveData(data);
+            } else if (now > data.nextCoinDrop) {
+                data.nextCoinDrop = now + (Math.floor(Math.random() * 45) + 45) * 60000;
+                saveData(data);
+                
+                const ecoChannel = client.channels.cache.get(ECONOMY_CHANNEL_ID);
+                if (ecoChannel) {
+                    const dropAmount = Math.floor(Math.random() * 401) + 100; // 100 to 500
+                    const embed = new EmbedBuilder()
+                        .setColor(0xf1c40f)
+                        .setTitle('💰 Random Coin Drop!')
+                        .setDescription(`A bag containing **🪙 ${dropAmount} Coins** just dropped out of nowhere!`)
+                        .setFooter({ text: 'First person to click the button claims the coins!' });
+
+                    const claimButton = new ButtonBuilder()
+                        .setCustomId(`grab_coins_${dropAmount}`)
+                        .setLabel('Grab Coins!')
+                        .setStyle(ButtonStyle.Success)
+                        .setEmoji('✋');
+                    const row = new ActionRowBuilder().addComponents(claimButton);
+                    ecoChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                }
+            }
+
+            // --- Time-based Card Drops ---
+            if (!data.nextCardDropTime) {
+                data.nextCardDropTime = now + (Math.floor(Math.random() * 60) + 60) * 60000; // 60-120 minutes
+                saveData(data);
+            } else if (now > data.nextCardDropTime) {
+                data.nextCardDropTime = now + (Math.floor(Math.random() * 60) + 60) * 60000;
+                saveData(data);
+
+                const ecoChannel = client.channels.cache.get(ECONOMY_CHANNEL_ID); // Fallback to eco channel
+                if (ecoChannel) {
+                    const roll = Math.random() * 100;
+                    let rarityTarget = 'C';
+                    if (roll <= 1) rarityTarget = 'UR';
+                    else if (roll <= 15) rarityTarget = 'SR';
+                    else if (roll <= 40) rarityTarget = 'R';
+
+                    if (gachaPool.length > 0) {
+                        const possibleDrops = gachaPool.filter(a => a.rarity === rarityTarget);
+                        if (possibleDrops.length > 0) {
+                            const drop = possibleDrops[Math.floor(Math.random() * possibleDrops.length)];
+                            const embed = new EmbedBuilder()
+                                .setColor(rarityTarget === 'UR' ? 0xff00ff : rarityTarget === 'SR' ? 0xffaa00 : rarityTarget === 'R' ? 0x00aaff : 0xaaaaaa)
+                                .setTitle(`✨ A Wild Avatar Appeared!`)
+                                .setDescription(`A mysterious card just dropped in chat!\n\n**${drop.name}** [${drop.rarity}]\nPower: ${drop.power || 50}\n\nClick the button below to snipe it!`)
+                                .setImage(drop.image)
+                                .setFooter({ text: 'Full Claim limit: 1/hr | Snipe for Coins limit: 5/hr' });
+
+                            const claimButton = new ButtonBuilder()
+                                .setCustomId(`grab_card_${drop.id}`)
+                                .setLabel('Grab Card!')
+                                .setStyle(ButtonStyle.Primary)
+                                .setEmoji('✋');
+
+                            const row = new ActionRowBuilder().addComponents(claimButton);
+                            ecoChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                        }
+                    }
                 }
             }
         } catch (e) {
@@ -1880,39 +1947,66 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             const cheerio = require('cheerio');
-            const searchQuery = interaction.options.getString('search');
-            let fetchUrl = '';
-            if (searchQuery) {
-                fetchUrl = `https://booth.pm/en/search/${encodeURIComponent(searchQuery)}?category_ids%5B%5D=208`;
-            } else {
-                const page = Math.floor(Math.random() * 50) + 1;
-                fetchUrl = `https://booth.pm/en/search/%E3%82%AA%E3%83%AA%E3%82%B8%E3%83%8A%E3%83%AB3D%E3%83%A2%E3%83%87%E3%83%AB?category_ids%5B%5D=208&sort=wish&page=${page}`;
-            }
-            const res = await fetch(fetchUrl);
-            const html = await res.text();
-            const $ = cheerio.load(html);
-            const items = $('.item-card').slice(0, amount).toArray();
+            const searchQuery = interaction.options.getString('search_or_link');
             let count = 0;
             const channel = await client.channels.fetch('1525819468176035860');
-            for (let item of items) {
-                const name = $(item).find('.item-card__title').text().trim();
-                const url = $(item).find('.item-card__title a').attr('href');
-                const image = $(item).find('.item-card__thumbnail-image').attr('src') || $(item).find('.item-card__thumbnail-image').attr('data-original');
-                const creator = $(item).find('.item-card__shop-name').text().trim() || 'Unknown';
-                if (!name || !url || !image) continue;
 
-                // Prevent fetching duplicates that are already in the Gacha Pool
-                const isDuplicate = gachaPool.some(g => g.name === name || g.image === image);
-                if (isDuplicate) continue;
-
-                const embed = new EmbedBuilder().setTitle(name).setURL(url).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId('deny_avatar_submission').setLabel('Deny').setStyle(ButtonStyle.Danger)
-                );
-                await channel.send({ embeds: [embed], components: [row] });
-                count++;
-                await new Promise(r => setTimeout(r, 1000));
+            if (searchQuery && searchQuery.startsWith('https://booth.pm/')) {
+                const res = await fetch(searchQuery);
+                const html = await res.text();
+                const $ = cheerio.load(html);
+                
+                let title = $('meta[property="og:title"]').attr('content') || '';
+                if (title.includes(' - BOOTH')) title = title.split(' - ')[0];
+                if (!title) title = $('h2').first().text().trim();
+                
+                const image = $('meta[property="og:image"]').attr('content');
+                const creator = $('.shop-name, .shop-info__name, .shop-link').first().text().trim() || 'Unknown';
+                
+                if (title && image) {
+                    const isDuplicate = gachaPool.some(g => g.name === title || g.image === image);
+                    if (!isDuplicate) {
+                        const embed = new EmbedBuilder().setTitle(title).setURL(searchQuery).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
+                            new ButtonBuilder().setCustomId('deny_avatar_submission').setLabel('Deny').setStyle(ButtonStyle.Danger)
+                        );
+                        await channel.send({ embeds: [embed], components: [row] });
+                        count++;
+                    }
+                }
+            } else {
+                let fetchUrl = '';
+                if (searchQuery) {
+                    fetchUrl = `https://booth.pm/en/search/${encodeURIComponent(searchQuery)}?category_ids%5B%5D=208`;
+                } else {
+                    const page = Math.floor(Math.random() * 50) + 1;
+                    fetchUrl = `https://booth.pm/en/search/%E3%82%AA%E3%83%AA%E3%82%B8%E3%83%8A%E3%83%AB3D%E3%83%A2%E3%83%87%E3%83%AB?category_ids%5B%5D=208&sort=wish&page=${page}`;
+                }
+                const res = await fetch(fetchUrl);
+                const html = await res.text();
+                const $ = cheerio.load(html);
+                const items = $('.item-card').slice(0, amount).toArray();
+                
+                for (let item of items) {
+                    const name = $(item).find('.item-card__title').text().trim();
+                    const url = $(item).find('.item-card__title a').attr('href');
+                    const image = $(item).find('.item-card__thumbnail-image').attr('src') || $(item).find('.item-card__thumbnail-image').attr('data-original');
+                    const creator = $(item).find('.item-card__shop-name').text().trim() || 'Unknown';
+                    if (!name || !url || !image) continue;
+                    
+                    const isDuplicate = gachaPool.some(g => g.name === name || g.image === image);
+                    if (isDuplicate) continue;
+                    
+                    const embed = new EmbedBuilder().setTitle(name).setURL(url).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId('deny_avatar_submission').setLabel('Deny').setStyle(ButtonStyle.Danger)
+                    );
+                    await channel.send({ embeds: [embed], components: [row] });
+                    count++;
+                    await new Promise(r => setTimeout(r, 1000));
+                }
             }
             data.dailyFetchCount += count;
             saveData(data);
