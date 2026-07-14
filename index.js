@@ -3137,7 +3137,10 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /lookup ───────────────────────────────────────────────────────────────
     if (interaction.commandName === 'lookup') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID, PVP_CHANNEL_ID];
+        if (!allowedChannels.includes(interaction.channelId)) {
+            return interaction.reply({ content: `⚠️ Please use lookup commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, <#${TRADING_CHANNEL_ID}>, or <#${PVP_CHANNEL_ID}>!`, flags: 64 });
+        }
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
