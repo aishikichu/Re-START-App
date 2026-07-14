@@ -14,12 +14,15 @@ Chatting actively in the server will automatically reward you with **Coins**!
 > 🔹 **`/daily`** - Claim your free daily coin allowance! Keep your streak going to earn more coins and a Gacha Token milestone every 7 days!
 > 🔹 **`/work`** - Send one of your avatars to flip burgers at McDonald's for 4 hours to earn coins! (Expand your empire with `/buy work_slot`)
 > 🔹 **`/riskywork`** - Send an avatar on a highly illegal and dangerous mission for a chance at massive payouts! Fail and they go to jail!
-> 🔹 **`/claimwork`** - Claim your avatar's minimum wage after they survive their shift! (Avatars will need a 2-hour rest after working).
+> 🔹 **`/claimwork`** - Claim your avatar's minimum wage after they survive their shift! (Avatars will need a 2-hour rest after working). Tip: Working avatars of the same rarity together grants a **Synergy Bonus** (+15% per matching rarity)!
 > 🔹 **`/upgrade`** - Level up your avatar's RPG Stats (Speed, Endurance, Luck) using Coins and Affinity Points to boost their work efficiency!
+> 🔹 **`/ascend`** - Consume 3 duplicate cards of the same avatar to Ascend them! Gain massive permanent Combat Power (CP) boosts!
 > 🔹 **`/balance`** - Check your current coin balance and total chat XP.
 > 🔹 **`/leaderboard`** - Compete for the #1 spot! See the Top 10 Richest players, Highest Levels, and Top Avatar Collectors!
 > 🔹 **`/give`** - Feeling generous? Transfer your coins to another member!
 > 🔹 **`/beg`** - Down bad? Beg the server for some spare coins!
+> 🔹 **`/quests`** - Check and claim your active daily quests for rewards!
+> 🔹 **`/use`** - Consume items (like Energy Drinks or Money Bags) bought from the shop!
 
 ## 🎲 Casino Minigames
 Want to risk it all for a huge payout? Head to the economy channel! (Note: Max jackpot limits apply!)
@@ -38,6 +41,10 @@ The server features a custom Avatar Trading Card game! Roll the Gacha, claim you
 > 🔹 **`/lookup`** - Search for a specific avatar to see its rarity, value, and who currently owns it.
 > 🔹 **`/pity`** - Check how many rolls you are away from a guaranteed Ultra Rare!
 > 🔹 **`/setshowcase`** - Flex your favorite avatar on your profile widget!
+
+## ⚔️ PvP Avatar Duels
+Challenge other members to high-stakes duels in the PvP channel!
+> 🔹 **`/duel`** - Wager coins and pit your avatar against another player's avatar. The winner takes the pot, and the loser gets sent to the Hospital for 2 hours!
 
 ## 🌐 The Interactive Widget
 Every member gets a live, interactive web widget!

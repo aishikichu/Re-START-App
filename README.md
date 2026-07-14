@@ -19,8 +19,9 @@
 
 **Re:START** is a fully comprehensive Discord bot for your community. It features:
 * **Profile Widget Sync:** Let users customize their own Discord Profile Widget stats natively.
-* **Massive Economy:** Chat XP, Leveling, Coin drops, and a Dynamic Shop where prices fluctuate!
-* **Re:BOOTH Gacha:** A dynamically curated pool of VRChat Booth Avatars to pull, collect, sell, and trade. Staff can fetch the latest popular Booth avatars directly into Discord and approve them into the pool with custom rarities (UR, SR, R). The pool is securely stored in MongoDB to prevent ephemeral disk wipes.
+* **Massive Economy & Work Empire:** Chat XP, Leveling, Coin drops, a Dynamic Shop, and an entire Idle Game loop where you send avatars to work!
+* **Re:BOOTH Gacha:** A dynamically curated pool of VRChat Booth Avatars to pull, collect, sell, trade, and **Ascend**. Staff can fetch the latest popular Booth avatars directly into Discord and approve them into the pool.
+* **PvP Duels & Daily Quests:** Challenge other members to high-stakes weighted combat duels using your avatars, and complete daily quests for rewards!
 * **Fun & Moderation:** Magic 8-ball, Starboard, auto-role panels, verification systems, and an automated **Profanity Filter** equipped with a Developer-only **Hall of Shame** leaderboard!
 
 > 💡 **A Quick Note:** *I originally built this bot specifically for my personal friend group's Discord server, rather than as a massive public community bot. However, it's completely open-source! Feel free to use, modify, and host this code for your own community.*
@@ -41,8 +42,9 @@ Check out our step-by-step **[User Guide Documentation](https://docs.google.com/
 
 ### 💸 Dynamic Economy & Leveling
 The server feels alive! Users gain XP and Coins just by chatting. 
-Random **Coin Drops** appear in the chat for the fastest clicker to claim. Use your coins to gamble on the **Slot Machine**, or spend them in the **Dynamic Shop** where prices fluctuate every 3 hours based on a simulated market economy! 
+Random **Coin Drops** appear in the chat for the fastest clicker to claim. Use your coins to gamble on the **Slot Machine**, spend them in the **Dynamic Shop** where prices fluctuate every 3 hours, or use them to expand your **Work Empire** and send avatars to work!
 * Keep an eye out for the elusive **🌟 VIP Pass** in the shop, which grants Double Gacha Luck, 2x Daily Coins, and golden profile flair for 1 hour!
+* Complete your **Daily Quests** (`/quests`) every day to earn massive coin and token payouts!
 
 ### 🎰 The Re:BOOTH Gacha System
 Spend your tokens to roll for 3D Booth Avatars! The pool is completely dynamic and community-curated.
@@ -51,6 +53,7 @@ Spend your tokens to roll for 3D Booth Avatars! The pool is completely dynamic a
 * Set up a **Wishlist** and get notified when someone rolls your dream avatar!
 * **Lookup** the database to find all variants of an avatar and see who owns them.
 * **Trade** avatars with other players, or **sell** duplicates back to the shop.
+* **Ascend** your avatars by burning duplicates to gain permanent Combat Power (CP) boosts, giving you the edge in high-stakes **PvP Duels** (`/duel`)!
 
 ### 🪪 Profile Widget Stats & In-Server Profiles
 * Hook directly into Discord's **Profile Widget API**. Users can type `/setstat` to instantly push custom labels and values directly to their in-app profile widget. No messy dashboards needed!

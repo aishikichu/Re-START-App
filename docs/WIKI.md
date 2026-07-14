@@ -60,7 +60,7 @@ Your avatars aren't just for show—they need to earn their keep!
 
 ### 💼 The Work Cycle
 * **`/work`:** Send an avatar to work a 4-hour shift at McDonald's. The amount of coins they earn is based on their base Power and their Luck stat.
-* **`/claimwork`:** Once the 4 hours are up, claim their wages! 
+* **`/claimwork`:** Once the 4 hours are up, claim their wages! **Synergy Bonus:** If you have multiple avatars of the same rarity working at the same time, you gain a +15% coin multiplier per matching rarity when you claim!
 * **🛌 Resting Phase:** Flipping burgers is exhausting. After claiming wages, that avatar enters a **Resting Phase** for 2 Hours. They cannot be sent to work again until they wake up.
 * **Work Slots:** You start with only 1 Work Slot. You can buy more slots in the `/shop` to have multiple avatars working simultaneously. Each new slot costs progressively more!
 
@@ -69,11 +69,13 @@ Feeling lucky? Use `/riskywork` to send an avatar on a highly illegal heist (4-h
 * **Success:** Massive payout multiplier!
 * **Failure (Jail):** The avatar is busted! They are sent to **Jail** for a specific duration. While in jail, they cannot work, be sold, or be traded!
 
-### ✨ Upgrading RPG Stats
+### ✨ Upgrading RPG Stats & Ascension
 You can use `/upgrade <avatar_id> <stat>` to level up specific stats for your avatars (Max Level 10). Upgrading costs both **Coins** and **Affinity Points**.
 1. **🏃‍♂️ Speed:** Reduces the 4-hour `/work` duration (Saves 10 minutes per level).
 2. **🛡️ Endurance:** Reduces the 2-hour Resting Phase (Saves 10 minutes per level).
 3. **🍀 Luck:** Increases your payout multiplier for normal work, and increases your success chance for `/riskywork`!
+
+**Ascension:** If you have 3 or more duplicates of an avatar, you can use `/ascend <avatar_id>` to consume 3 duplicates and ascend the avatar. Each Ascension level permanently increases the avatar's Combat Power (CP) by 20%, which is crucial for PvP!
 
 ---
 
@@ -88,8 +90,9 @@ The `/shop` doesn't have fixed prices for everything! The price of Gacha Tokens 
 ### 🎲 The Casino
 The bot features several casino minigames (`/slots`, `/blackjack`, `/roulette`, `/coinflip`). To prevent inflation and hyper-wealth loops, there are **Max Jackpot Limits** hardcoded into the games (usually capping out around 7,000 Coins max win).
 
-### 🏪 The Global Market
+### 🏪 The Global Market & Shop Items
 Players set the economy! Use `/market list <avatar_id> <price>` to sell your avatars to other players. Use `/market view` to browse active listings and snipe good deals.
+You can also buy consumables like **Money Bags** and **Energy Drinks** from the shop, and consume them using `/use <item>`.
 
 ---
 
@@ -100,6 +103,8 @@ Re:START integrates heavily with the web!
 * **`/setstat`:** Customize the 6 text slots on your web widget to say whatever you want!
 * **`/profile`:** Displays your in-server profile card featuring your Level, Net Worth, and Avatar Showcase.
 * **`/setshowcase`:** Pick up to 10 of your favorite avatars from your inventory to display on your profile!
+
+---
 
 ---
 
@@ -116,7 +121,15 @@ The bot runs background events to keep chat engaging:
 
 ---
 
-## 7. Complete Command Directory 📚
+## 7. Quests & PvP Duels ⚔️
+Re:START features daily quests and active player-vs-player combat!
+
+* **Daily Quests:** Check `/quests` to see your 3 active daily quests. Complete them for Coins and Token rewards!
+* **PvP Duels:** Use `/duel <opponent> <bet> <avatar_id>` in the PvP channel. If accepted, the bot calculates the Combat Power (CP) of both avatars (Base + Ascension + Luck) and does a weighted roll. The winner takes the pot, and the loser's avatar is sent to the Hospital for 2 hours!
+
+---
+
+## 8. Complete Command Directory 📚
 
 ### 🪙 Economy & Casino
 * **`/balance`** (or `/rank`) — View your Coins, Level, and XP.
@@ -125,6 +138,8 @@ The bot runs background events to keep chat engaging:
 * **`/buy <item> [amount]`** — Purchase items from the shop.
 * **`/give <user> <amount>`** — Transfer coins to another user.
 * **`/beg`** — Beg the server for spare change.
+* **`/use <item>`** — Use a consumable item from your inventory.
+* **`/quests`** — View and claim daily quests.
 * **`/leaderboard <category>`** — View the top players (Coins, Level, Avatars).
 * **`/slots <bet>`** — Spin the slot machine!
 * **`/blackjack <bet>`** — Play blackjack against the dealer.
@@ -138,6 +153,7 @@ The bot runs background events to keep chat engaging:
 * **`/pity`** — Check your progress towards a guaranteed UR avatar.
 * **`/wish <avatar_id>`** — Add an avatar to your wishlist.
 * **`/wishlist`** — View the global or personal wishlist.
+* **`/ascend <avatar_id>`** — Consume 3 duplicates to ascend an avatar and boost their CP.
 * **`/sell <avatar_id>`** — Sell an avatar back to the system for its base coin value.
 * **`/trade <user> <give> <receive>`** — Propose a 1-for-1 trade with another user.
 * **`/market view`** — Browse player-listed avatars for sale.
@@ -160,6 +176,7 @@ The bot runs background events to keep chat engaging:
 * **`/roll [sides]`** — Roll a dice.
 * **`/vibe`** — Get a random vibe check.
 * **`/rps <choice>`** — Play Rock, Paper, Scissors against the bot.
+* **`/duel <user> <bet> <avatar_id>`** — Challenge another user to a PvP Avatar Duel.
 * **`/help`** — View the in-game command guide.
 
 ### 🛠️ Admin / Developer
