@@ -25,6 +25,7 @@ const Filter = require('bad-words');
 const activeTradeSessions = new Map(); // Store trade session data
 const activeDuels = new Map(); // Store pending PvP duels
 const activeClaimLocks = new Set(); // Prevent race conditions on buttons
+const activeAvatarLocks = new Set(); // Global lock for avatar IDs to prevent concurrent TOCTOU dupes
 const mongoose = require('mongoose');
 const User = require('./models/User'); // Import our new User database schema
 const Starboard = require('./models/Starboard'); // Import Starboard schema
@@ -354,6 +355,9 @@ const slashCommands = [
         .setName('claimwork')
         .setDescription('Claim coins from your completed work'),
     new SlashCommandBuilder()
+        .setName('working')
+        .setDescription('Check your current working avatars and work slots'),
+    new SlashCommandBuilder()
         .setName('trade')
         .setDescription('Propose a Re:BOOTH avatar trade with another user!')
         .addUserOption(opt => 
@@ -364,6 +368,9 @@ const slashCommands = [
             opt.setName('receive_id').setDescription('The ID of the avatar you want from them').setRequired(true)),
 
     // ── Verification (Admin only) ─────────────────────────────────────────────
+    new SlashCommandBuilder()
+        .setName('fixmarycia')
+        .setDescription('Temp fix'),
     new SlashCommandBuilder()
         .setName('setupverify')
         .setDescription('✅ Post the verification panel (Admin only)')
@@ -1014,7 +1021,13 @@ client.on('interactionCreate', async (interaction) => {
         const claimerId = interaction.user.id;
 
         try {
+            if (activeClaimLocks.has(interaction.message.id)) {
+                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+            }
+            activeClaimLocks.add(interaction.message.id);
+
             if (interaction.message.components[0].components[0].disabled) {
+                activeClaimLocks.delete(interaction.message.id);
                 return interaction.reply({ content: '❌ Too late! Someone already grabbed these coins.', flags: 64 });
             }
 
@@ -1036,9 +1049,11 @@ client.on('interactionCreate', async (interaction) => {
                 .setFooter({ text: `💰 Claimed by ${interaction.user.username}` });
 
             await interaction.update({ embeds: [embed], components: [row] });
+            activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
             console.error(err);
+            activeClaimLocks.delete(interaction.message.id);
             return interaction.reply({ content: '❌ Error claiming coins!', flags: 64 });
         }
     }
@@ -1066,7 +1081,17 @@ client.on('interactionCreate', async (interaction) => {
             const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
             const cardData = gachaPool.find(c => c.id === cardId) || { name: 'Card', value: 100 };
 
-            if (!userRecord.inventory.includes(cardId)) {
+            if (activeAvatarLocks.has(cardId)) {
+                activeClaimLocks.delete(interaction.message.id);
+                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', flags: 64 });
+            }
+            activeAvatarLocks.add(cardId);
+
+            try {
+                const globallyOwned = await User.findOne({ inventory: cardId });
+                const alreadyOwns = userRecord.inventory.includes(cardId);
+
+                if (!globallyOwned) {
                 // Full Claim
                 if (userRecord.lastCardDropClaimDate && userRecord.lastCardDropClaimDate > oneHourAgo) {
                     activeClaimLocks.delete(interaction.message.id);
@@ -1129,6 +1154,9 @@ client.on('interactionCreate', async (interaction) => {
                 activeClaimLocks.delete(interaction.message.id);
                 return;
             }
+            } finally {
+                activeAvatarLocks.delete(cardId);
+            }
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
@@ -1139,7 +1167,13 @@ client.on('interactionCreate', async (interaction) => {
     // ── Button: Grab Star ─────────────────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('grab_star_')) {
         try {
+            if (activeClaimLocks.has(interaction.message.id)) {
+                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+            }
+            activeClaimLocks.add(interaction.message.id);
+
             if (interaction.message.components[0].components[0].disabled) {
+                activeClaimLocks.delete(interaction.message.id);
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this star.', flags: 64 });
             }
 
@@ -1241,9 +1275,17 @@ client.on('interactionCreate', async (interaction) => {
             const now = new Date();
             const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
             
-            const alreadyOwns = claimerRecord.inventory.includes(modelId);
+            if (activeAvatarLocks.has(modelId)) {
+                activeClaimLocks.delete(interaction.message.id);
+                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', flags: 64 });
+            }
+            activeAvatarLocks.add(modelId);
 
-            if (!alreadyOwns) {
+            try {
+                const globallyOwned = await User.findOne({ inventory: modelId });
+                const alreadyOwns = claimerRecord.inventory.includes(modelId);
+
+                if (!globallyOwned) {
                 // FULL CLAIM
                 if (claimerRecord.lastCardDropClaimDate && claimerRecord.lastCardDropClaimDate > oneHourAgo) {
                     activeClaimLocks.delete(interaction.message.id);
@@ -1283,18 +1325,32 @@ client.on('interactionCreate', async (interaction) => {
                     // Sniper gets Coins!
                     const snipeCoins = Math.floor((model.value || 100) / 2);
                     claimerRecord.coins += snipeCoins;
-                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> already owns this, so they sniped it for **🪙 ${snipeCoins} Coins** instead!`;
+                    if (alreadyOwns) {
+                        claimMsg = `🔫 **SNIPED!** <@${claimerId}> already owns this, so they sniped it for **🪙 ${snipeCoins} Coins** instead!`;
+                    } else {
+                        claimMsg = `🔫 **SNIPED!** <@${claimerId}> sniped this drop for **🪙 ${snipeCoins} Coins** since it's already owned!`;
+                    }
                 } else {
-                    // Roller gets Affinity!
-                    if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
-                    const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
-                    claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
-                    
-                    const percent = Math.min((currentAff + 1) * 10, 100);
-                    claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
+                    if (alreadyOwns) {
+                        // Roller gets Affinity!
+                        if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
+                        const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
+                        claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
+                        
+                        const percent = Math.min((currentAff + 1) * 10, 100);
+                        claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
+                    } else {
+                        // Someone else owns it globally
+                        const snipeCoins = Math.floor((model.value || 100) / 2);
+                        claimerRecord.coins += snipeCoins;
+                        claimMsg = `💖 **Owned Already!** <@${claimerId}> rolled an avatar that is already owned! They received **🪙 ${snipeCoins} Coins** as compensation!`;
+                    }
                 }
             }
-            await claimerRecord.save();
+                await claimerRecord.save();
+            } finally {
+                activeAvatarLocks.delete(modelId);
+            }
 
             // Disable the button and update message
             const disabledButton = new ButtonBuilder()
@@ -1344,7 +1400,13 @@ client.on('interactionCreate', async (interaction) => {
         const dropType = parts[1];
 
         try {
+            if (activeClaimLocks.has(interaction.message.id)) {
+                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+            }
+            activeClaimLocks.add(interaction.message.id);
+
             if (interaction.message.components[0].components[0].disabled) {
+                activeClaimLocks.delete(interaction.message.id);
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this drop.', flags: 64 });
             }
 
@@ -1392,9 +1454,11 @@ client.on('interactionCreate', async (interaction) => {
             embed.setDescription(claimMsg);
 
             await interaction.update({ embeds: [embed], components: [row] });
+            activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
             console.error(err);
+            activeClaimLocks.delete(interaction.message.id);
             return interaction.reply({ content: '❌ Error claiming drop!', flags: 64 });
         }
     }
@@ -2626,6 +2690,9 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'shop') {
         if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
         
+        await interaction.deferReply();
+        const userRecord = await User.findOne({ userId: interaction.user.id }) || { workSlots: 1 };
+        
         const shop = getShopPrices();
         const nextUpdate = Math.ceil((10800000 - (Date.now() - shop.lastUpdate)) / 1000 / 60);
         const nextDailyUpdate = Math.ceil((86400000 - (Date.now() - shop.lastDailyUpdate)) / 1000 / 60 / 60);
@@ -2651,8 +2718,11 @@ client.on('interactionCreate', async (interaction) => {
             { name: '🍀 Lucky Charm', value: `**Cost:** 🪙 15,000 Coins\n+10% win rate on risky jobs and gambling for 1 hour! ID: \`lucky_charm\`` }
         );
 
+        const currentSlots = userRecord.workSlots || 1;
+        const nextSlotCost = currentSlots * 5000;
+
         embed.addFields({ name: '--- Permanent Upgrades ---', value: '\u200B' });
-        embed.addFields({ name: '💼 Work Slot Expansion', value: `**Cost:** 🪙 5,000 * Current Slots\nUnlock up to 20 slots to send multiple avatars to work! ID: \`work_slot\`` });
+        embed.addFields({ name: '💼 Work Slot Expansion', value: `**Cost:** 🪙 ${nextSlotCost}\nUnlock up to 20 slots to send multiple avatars to work! You have **${currentSlots}/20** Slots. ID: \`work_slot\`` });
 
         embed.addFields({ name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' });
 
@@ -2665,7 +2735,7 @@ client.on('interactionCreate', async (interaction) => {
         const bSoldText = b.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${b.price}`;
         embed.addFields({ name: `📛 [${b.rarity}] Badge Profile`, value: `${bSoldText}\nBadge: ${b.emoji}\nID: \`badge\`` });
 
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
     }
 
     // ── /buy ──────────────────────────────────────────────────────────────────
@@ -2905,7 +2975,8 @@ client.on('interactionCreate', async (interaction) => {
                 .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 256 }))
                 .addFields(
                     { name: '✨ Level & XP', value: `Level **${userRecord.level}** (${userRecord.xp} XP)`, inline: true },
-                    { name: '💰 Balance & Net Worth', value: `Balance: **🪙 ${userRecord.coins}**\nNet Worth: **🪙 ${netWorth}**\nGacha Tokens: **🎟️ ${userRecord.gachaTokens || 0}**`, inline: true }
+                    { name: '💰 Balance & Net Worth', value: `Balance: **🪙 ${userRecord.coins}**\nNet Worth: **🪙 ${netWorth}**\nGacha Tokens: **🎟️ ${userRecord.gachaTokens || 0}**`, inline: true },
+                    { name: '📊 Stats', value: `💼 Work Slots: **${userRecord.workSlots || 1}/20**\n💖 Gacha Pity: **${userRecord.pityCounter || 0}/150**\n🎒 Avatars Owned: **${userRecord.inventory?.length || 0}**`, inline: false }
                 );
 
             if (isVip) {
@@ -2970,6 +3041,8 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /setshowcase ──────────────────────────────────────────────────────────
     if (interaction.commandName === 'setshowcase') {
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        
         const avatarsInput = interaction.options.getString('avatars');
         await interaction.deferReply();
 
@@ -3972,21 +4045,25 @@ client.on('interactionCreate', async (interaction) => {
                 let buyer = await User.findOne({ userId: interaction.user.id });
                 if (!buyer || buyer.coins < listing.price) return interaction.editReply(`❌ You don't have enough coins! You need **🪙 ${listing.price}**.`);
                 
+                // Atomically claim the listing
+                const deletedListing = await MarketListing.findOneAndDelete({ _id: listingId });
+                if (!deletedListing) {
+                    return interaction.editReply(`❌ This listing was already bought or cancelled!`);
+                }
+
                 // Process transaction
-                buyer.coins -= listing.price;
-                buyer.inventory.push(listing.avatarId);
+                buyer.coins -= deletedListing.price;
+                buyer.inventory.push(deletedListing.avatarId);
                 await buyer.save();
                 
-                let seller = await User.findOne({ userId: listing.sellerId });
+                let seller = await User.findOne({ userId: deletedListing.sellerId });
                 if (seller) {
-                    seller.coins += listing.price;
+                    seller.coins += deletedListing.price;
                     await seller.save();
                 }
                 
-                await MarketListing.findByIdAndDelete(listingId);
-                
-                const model = gachaPool.find(m => m.id === listing.avatarId);
-                return interaction.editReply(`🎉 You successfully bought **[${model ? model.rarity : '?'}] ${model ? model.name : listing.avatarId}** for 🪙 **${listing.price}** Coins!`);
+                const model = gachaPool.find(m => m.id === deletedListing.avatarId);
+                return interaction.editReply(`🎉 You successfully bought **[${model ? model.rarity : '?'}] ${model ? model.name : deletedListing.avatarId}** for 🪙 **${deletedListing.price}** Coins!`);
             }
             
             if (subCmd === 'cancel') {
@@ -3998,13 +4075,18 @@ client.on('interactionCreate', async (interaction) => {
                     return interaction.editReply(`❌ You don't own this listing!`);
                 }
                 
-                let seller = await User.findOne({ userId: listing.sellerId });
+                // Atomically claim the listing
+                const deletedListing = await MarketListing.findOneAndDelete({ _id: listingId });
+                if (!deletedListing) {
+                    return interaction.editReply(`❌ This listing was already bought or cancelled!`);
+                }
+
+                let seller = await User.findOne({ userId: deletedListing.sellerId });
                 if (seller) {
-                    seller.inventory.push(listing.avatarId);
+                    seller.inventory.push(deletedListing.avatarId);
                     await seller.save();
                 }
                 
-                await MarketListing.findByIdAndDelete(listingId);
                 return interaction.editReply(`✅ Market listing cancelled and avatar returned to inventory!`);
             }
             
@@ -4087,6 +4169,65 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             return interaction.editReply('❌ Error starting duel!');
+        }
+    }
+
+    // ── /working ──────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'working') {
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! Please check your work shifts in <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        
+        await interaction.deferReply();
+
+        try {
+            const userRecord = await User.findOne({ userId: interaction.user.id });
+            if (!userRecord) {
+                return interaction.editReply('❌ You don\\'t have a profile yet! Run some commands first.');
+            }
+
+            const activeWorkJobs = userRecord.activeWorkJobs || new Map();
+            const activeRiskyJobs = userRecord.activeRiskyJobs || new Map();
+            const maxSlots = userRecord.workSlots || 1;
+            const currentSlotsUsed = activeWorkJobs.size + activeRiskyJobs.size;
+
+            if (currentSlotsUsed === 0) {
+                return interaction.editReply(`💼 **Work Slots:** 0 / ${maxSlots}\n\nYou don't have any avatars currently working. Use \`/work\` to send them to the wagie cagie!`);
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0x3498db)
+                .setTitle('💼 Active Work Shifts')
+                .setDescription(`**Work Slots In-Use:** ${currentSlotsUsed} / ${maxSlots}`);
+
+            let descText = '';
+
+            for (const [avatarId, endTime] of activeWorkJobs.entries()) {
+                const model = gachaPool.find(m => m.id === avatarId);
+                const name = model ? model.name : avatarId;
+                if (endTime > new Date()) {
+                    descText += `🍔 **${name}** finishes <t:${Math.floor(endTime.getTime() / 1000)}:R>\n`;
+                } else {
+                    descText += `🍔 **${name}** is **DONE**! (Use \`/claimwork\`)\n`;
+                }
+            }
+
+            for (const [avatarId, endTime] of activeRiskyJobs.entries()) {
+                const model = gachaPool.find(m => m.id === avatarId);
+                const name = model ? model.name : avatarId;
+                if (endTime > new Date()) {
+                    descText += `⚠️ **${name}** (Risky) finishes <t:${Math.floor(endTime.getTime() / 1000)}:R>\n`;
+                } else {
+                    descText += `⚠️ **${name}** (Risky) is **DONE**! (Use \`/claimwork\`)\n`;
+                }
+            }
+
+            if (descText) {
+                embed.addFields({ name: 'Current Jobs', value: descText });
+            }
+
+            return interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ Error loading your working avatars!');
         }
     }
 
@@ -4352,6 +4493,8 @@ client.on('interactionCreate', async (interaction) => {
             if (reason === 'stand') {
                 while (dScore < 17) dScore += drawCard();
                 
+                userRecord = await User.findOne({ userId: interaction.user.id });
+
                 let resultText = '';
                 if (dScore > 21 || pScore > dScore) {
                     userRecord.coins += bet * 2;
@@ -4434,6 +4577,23 @@ client.on('interactionCreate', async (interaction) => {
                 { name: 'Result', value: `**${result}**` }
             );
         return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── /fixmarycia ────────────────────────────────────────────────────────
+    if (interaction.commandName === 'fixmarycia') {
+        const targetUserId = '379244614147768330';
+        const user = await User.findOne({ userId: targetUserId });
+        if (user) {
+            const index = user.inventory.indexOf('marycia');
+            if (index !== -1) {
+                user.inventory.splice(index, 1);
+                user.markModified('inventory');
+                await user.save();
+                return interaction.reply('Removed Marycia from shizukikawa!');
+            }
+            return interaction.reply('Marycia not found in shizukikawa inventory.');
+        }
+        return interaction.reply('User not found.');
     }
 
     // ── /setupverify ──────────────────────────────────────────────────────────
@@ -4549,6 +4709,8 @@ client.on('interactionCreate', async (interaction) => {
             content: `✅ Role **${emoji} ${name}** created and added to the panel!\nColor: \`#${hex}\` | ID: \`${created.id}\``
         });
     }
+
+
 
     // ── /issueidentity ─────────────────────────────────────────────────────────────
     if (interaction.commandName === 'issueidentity') {
@@ -4805,7 +4967,42 @@ if (!process.env.MONGO_URI) {
     console.error('❌ Missing MONGO_URI in environment variables!');
 } else {
     mongoose.connect(process.env.MONGO_URI)
-        .then(() => console.log('✅ Connected to MongoDB Database!'))
+        .then(async () => {
+            console.log('✅ Connected to MongoDB Database!');
+            
+            try {
+                const User = require('./models/User');
+                const users = await User.find({});
+                const ownership = {};
+                
+                for (const user of users) {
+                    for (const item of user.inventory) {
+                        if (!ownership[item]) ownership[item] = [];
+                        ownership[item].push(user.userId);
+                    }
+                }
+                
+                let fixed = 0;
+                for (const [item, owners] of Object.entries(ownership)) {
+                    if (owners.length > 1) {
+                        // Keep the first one, remove from others
+                        for (let i = 1; i < owners.length; i++) {
+                            const u = await User.findOne({ userId: owners[i] });
+                            if (u) {
+                                u.inventory = u.inventory.filter(id => id !== item);
+                                await u.save();
+                                fixed++;
+                            }
+                        }
+                    }
+                }
+                if (fixed > 0) {
+                    console.log(`🧹 Cleaned up ${fixed} duplicate avatar ownerships automatically!`);
+                }
+            } catch (err) {
+                console.error('Error cleaning up duplicates:', err);
+            }
+        })
         .catch(err => console.error('❌ Failed to connect to MongoDB:', err));
 }
 
