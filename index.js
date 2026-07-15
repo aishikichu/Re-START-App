@@ -4181,7 +4181,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const userRecord = await User.findOne({ userId: interaction.user.id });
             if (!userRecord) {
-                return interaction.editReply('❌ You don\\'t have a profile yet! Run some commands first.');
+                return interaction.editReply("❌ You don't have a profile yet! Run some commands first.");
             }
 
             const activeWorkJobs = userRecord.activeWorkJobs || new Map();
