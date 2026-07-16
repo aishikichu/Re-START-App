@@ -2030,9 +2030,15 @@ client.on('interactionCreate', async (interaction) => {
                 const image = $('meta[property="og:image"]').attr('content');
                 const creator = $('.shop-name, .shop-info__name, .shop-link').first().text().trim() || 'Unknown';
                 
-                if (title && image) {
-                    const isDuplicate = gachaPool.some(g => g.name === title || g.image === image);
+                if (!data.fetchedUrls) data.fetchedUrls = [];
+                if (title && image && !data.fetchedUrls.includes(searchQuery)) {
+                    const isDuplicate = gachaPool.some(g => {
+                        const gNameLower = g.name.toLowerCase();
+                        const titleLower = title.toLowerCase();
+                        return (g.name === title || g.image === image) || (gNameLower.length > 3 && titleLower.includes(gNameLower));
+                    });
                     if (!isDuplicate) {
+                        data.fetchedUrls.push(searchQuery);
                         const embed = new EmbedBuilder().setTitle(title).setURL(searchQuery).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
                         const row = new ActionRowBuilder().addComponents(
                             new ButtonBuilder().setCustomId('approve_avatar_submission').setLabel('Approve').setStyle(ButtonStyle.Success),
@@ -2062,8 +2068,20 @@ client.on('interactionCreate', async (interaction) => {
                     const creator = $(item).find('.item-card__shop-name').text().trim() || 'Unknown';
                     if (!name || !url || !image) continue;
                     
-                    const isDuplicate = gachaPool.some(g => g.name === name || g.image === image);
-                    if (isDuplicate) continue;
+                    if (!data.fetchedUrls) data.fetchedUrls = [];
+                    if (data.fetchedUrls.includes(url)) continue;
+                    
+                    const isDuplicate = gachaPool.some(g => {
+                        const gNameLower = g.name.toLowerCase();
+                        const nameLower = name.toLowerCase();
+                        return (g.name === name || g.image === image) || (gNameLower.length > 3 && nameLower.includes(gNameLower));
+                    });
+                    
+                    if (isDuplicate) {
+                        data.fetchedUrls.push(url);
+                        continue;
+                    }
+                    data.fetchedUrls.push(url);
                     
                     const embed = new EmbedBuilder().setTitle(name).setURL(url).setImage(image).setFooter({ text: 'Creator: ' + creator }).setColor('#0099ff');
                     const row = new ActionRowBuilder().addComponents(
@@ -2085,7 +2103,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // Enforce Widget Channel
-    const WIDGET_COMMANDS = ['setstat', 'setshowcase'];
+    const WIDGET_COMMANDS = ['setstat'];
     const PROFILE_CHANNELS = [WIDGET_CHANNEL_ID, ECONOMY_CHANNEL_ID, REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID, TRADING_CHANNEL_ID];
 
     if (interaction.channelId === WIDGET_CHANNEL_ID && !WIDGET_COMMANDS.includes(interaction.commandName) && interaction.commandName !== 'profile' && interaction.commandName !== 'help') {
@@ -3041,7 +3059,10 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /setshowcase ──────────────────────────────────────────────────────────
     if (interaction.commandName === 'setshowcase') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        const allowedChannels = [REBOOTH_CHANNEL_ID, PVP_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID];
+        if (!allowedChannels.includes(interaction.channelId)) {
+            return interaction.reply({ content: `⚠️ Please use this command in <#${REBOOTH_CHANNEL_ID}>, <#${PVP_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, or <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
+        }
         
         const avatarsInput = interaction.options.getString('avatars');
         await interaction.deferReply();
