@@ -1022,13 +1022,13 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
             }
             activeClaimLocks.add(interaction.message.id);
 
             if (interaction.message.components[0].components[0].disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already grabbed these coins.', flags: 64 });
+                return interaction.reply({ content: '❌ Too late! Someone already grabbed these coins.', ephemeral: true });
             }
 
             let userRecord = await User.findOne({ userId: claimerId });
@@ -1054,7 +1054,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.reply({ content: '❌ Error claiming coins!', flags: 64 });
+            return interaction.reply({ content: '❌ Error claiming coins!', ephemeral: true });
         }
     }
 
@@ -1065,13 +1065,13 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
             }
             activeClaimLocks.add(interaction.message.id);
 
             if (interaction.message.components[0].components[0].disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already grabbed this card.', flags: 64 });
+                return interaction.reply({ content: '❌ Too late! Someone already grabbed this card.', ephemeral: true });
             }
 
             let userRecord = await User.findOne({ userId: claimerId });
@@ -1083,7 +1083,7 @@ client.on('interactionCreate', async (interaction) => {
 
             if (activeAvatarLocks.has(cardId)) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', flags: 64 });
+                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true });
             }
             activeAvatarLocks.add(cardId);
 
@@ -1095,7 +1095,7 @@ client.on('interactionCreate', async (interaction) => {
                 // Full Claim
                 if (userRecord.lastCardDropClaimDate && userRecord.lastCardDropClaimDate > oneHourAgo) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                    return interaction.reply({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
                 }
                 userRecord.inventory.push(cardId);
                 userRecord.lastCardDropClaimDate = now;
@@ -1125,7 +1125,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 if (userRecord.coinSnipeCount >= 5) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
                 }
 
                 if (userRecord.coinSnipeCount === 0 || !userRecord.lastCoinSnipeReset) {
@@ -1160,7 +1160,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.reply({ content: '❌ Error claiming card!', flags: 64 });
+            return interaction.reply({ content: '❌ Error claiming card!', ephemeral: true });
         }
     }
 
@@ -1168,13 +1168,13 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith('grab_star_')) {
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
             }
             activeClaimLocks.add(interaction.message.id);
 
             if (interaction.message.components[0].components[0].disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this star.', flags: 64 });
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this star.', ephemeral: true });
             }
 
             let userRecord = await User.findOne({ userId: interaction.user.id });
@@ -1217,7 +1217,7 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: '❌ Error claiming star!', flags: 64 });
+            return interaction.reply({ content: '❌ Error claiming star!', ephemeral: true });
         }
     }
 
@@ -1233,13 +1233,13 @@ client.on('interactionCreate', async (interaction) => {
             rollerId = parts[2];
             const timestamp = parseInt(parts[3]);
             if (Date.now() - timestamp > 20000) {
-                return interaction.reply({ content: '❌ This drop has expired (20 second limit)!', flags: 64 });
+                return interaction.reply({ content: '❌ This drop has expired (20 second limit)!', ephemeral: true });
             }
         } else {
             // Old format: claim_model_id_roller_id_timestamp OR claim_model_id_timestamp
             const withoutPrefix = interaction.customId.replace('claim_', '');
             const model = gachaPool.find(m => withoutPrefix.startsWith(m.id));
-            if (!model) return interaction.reply({ content: '❌ Error: Avatar not found!', flags: 64 });
+            if (!model) return interaction.reply({ content: '❌ Error: Avatar not found!', ephemeral: true });
             modelId = model.id;
             
             const remainder = withoutPrefix.replace(model.id + '_', '');
@@ -1253,12 +1253,12 @@ client.on('interactionCreate', async (interaction) => {
         try {
             // Check memory lock to prevent race condition
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', flags: 64 });
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', ephemeral: true });
             }
 
             // Check if button is already claimed
             if (interaction.message.components[0].components[0].disabled) {
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', flags: 64 });
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', ephemeral: true });
             }
 
             // Lock the message
@@ -1277,7 +1277,7 @@ client.on('interactionCreate', async (interaction) => {
             
             if (activeAvatarLocks.has(modelId)) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', flags: 64 });
+                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true });
             }
             activeAvatarLocks.add(modelId);
 
@@ -1289,7 +1289,7 @@ client.on('interactionCreate', async (interaction) => {
                 // FULL CLAIM
                 if (claimerRecord.lastCardDropClaimDate && claimerRecord.lastCardDropClaimDate > oneHourAgo) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                    return interaction.reply({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
                 }
 
                 claimerRecord.inventory.push(modelId);
@@ -1311,7 +1311,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 if (claimerRecord.coinSnipeCount >= 5) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: 64 });
+                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
                 }
 
                 if (claimerRecord.coinSnipeCount === 0 || !claimerRecord.lastCoinSnipeReset) {
@@ -1390,7 +1390,7 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: '❌ Error claiming avatar!', flags: 64 });
+            return interaction.reply({ content: '❌ Error claiming avatar!', ephemeral: true });
         }
     }
 
@@ -1401,13 +1401,13 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', flags: 64 });
+                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
             }
             activeClaimLocks.add(interaction.message.id);
 
             if (interaction.message.components[0].components[0].disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this drop.', flags: 64 });
+                return interaction.reply({ content: '❌ Too late! Someone already claimed this drop.', ephemeral: true });
             }
 
             let claimerRecord = await User.findOne({ userId: interaction.user.id });
@@ -1459,7 +1459,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.reply({ content: '❌ Error claiming drop!', flags: 64 });
+            return interaction.reply({ content: '❌ Error claiming drop!', ephemeral: true });
         }
     }
     // ── Button: Accept Duel ───────────────────────────────────────────────────
@@ -1468,16 +1468,16 @@ client.on('interactionCreate', async (interaction) => {
         const duelData = activeDuels.get(duelId);
         
         if (!duelData) {
-            return interaction.reply({ content: '❌ This duel challenge has expired or was already completed!', flags: 64 });
+            return interaction.reply({ content: '❌ This duel challenge has expired or was already completed!', ephemeral: true });
         }
         
         if (interaction.user.id !== duelData.opponentId) {
-            return interaction.reply({ content: '❌ You are not the opponent for this duel!', flags: 64 });
+            return interaction.reply({ content: '❌ You are not the opponent for this duel!', ephemeral: true });
         }
         
         if (Date.now() > duelData.expiresAt.getTime()) {
             activeDuels.delete(duelId);
-            return interaction.reply({ content: '❌ This duel challenge has expired!', flags: 64 });
+            return interaction.reply({ content: '❌ This duel challenge has expired!', ephemeral: true });
         }
 
         // Pop Modal
@@ -1504,7 +1504,7 @@ client.on('interactionCreate', async (interaction) => {
         const duelData = activeDuels.get(duelId);
         
         if (!duelData) {
-            return interaction.reply({ content: '❌ This duel challenge has expired or was already completed!', flags: 64 });
+            return interaction.reply({ content: '❌ This duel challenge has expired or was already completed!', ephemeral: true });
         }
         
         const opponentAvatarId = interaction.fields.getTextInputValue('avatar_id').toLowerCase();
@@ -1625,7 +1625,7 @@ client.on('interactionCreate', async (interaction) => {
 
         // Only the target user can click the buttons
         if (interaction.user.id !== targetId) {
-            return interaction.reply({ content: '❌ This trade proposal is not for you!', flags: 64 });
+            return interaction.reply({ content: '❌ This trade proposal is not for you!', ephemeral: true });
         }
 
         try {
@@ -1643,10 +1643,10 @@ client.on('interactionCreate', async (interaction) => {
 
                 // Verify both users still own the items
                 if (!senderRecord || !senderRecord.inventory.includes(giveId)) {
-                    return interaction.reply({ content: `❌ Trade failed! <@${senderId}> no longer owns \`${giveId}\`.`, flags: 64 });
+                    return interaction.reply({ content: `❌ Trade failed! <@${senderId}> no longer owns \`${giveId}\`.`, ephemeral: true });
                 }
                 if (!targetRecord || !targetRecord.inventory.includes(receiveId)) {
-                    return interaction.reply({ content: `❌ Trade failed! You no longer own \`${receiveId}\`.`, flags: 64 });
+                    return interaction.reply({ content: `❌ Trade failed! You no longer own \`${receiveId}\`.`, ephemeral: true });
                 }
 
                 // Swap the items
@@ -1669,7 +1669,7 @@ client.on('interactionCreate', async (interaction) => {
             }
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: '❌ Error processing trade!', flags: 64 });
+            return interaction.reply({ content: '❌ Error processing trade!', ephemeral: true });
         }
     }
 
@@ -1681,20 +1681,20 @@ client.on('interactionCreate', async (interaction) => {
             const role = interaction.guild.roles.cache.find(r => r.name === roleName);
 
             if (!role) {
-                return interaction.reply({ content: `❌ Error: Tell an Admin to create a role named exactly \`${roleName}\`!`, flags: 64 });
+                return interaction.reply({ content: `❌ Error: Tell an Admin to create a role named exactly \`${roleName}\`!`, ephemeral: true });
             }
 
             // Check if they already have it
             if (interaction.member.roles.cache.has(role.id)) {
-                return interaction.reply({ content: '✅ You are already verified!', flags: 64 });
+                return interaction.reply({ content: '✅ You are already verified!', ephemeral: true });
             }
 
             // Add the role
             await interaction.member.roles.add(role);
-            return interaction.reply({ content: '🎉 You have been successfully verified! Welcome to the server!', flags: 64 });
+            return interaction.reply({ content: '🎉 You have been successfully verified! Welcome to the server!', ephemeral: true });
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: '❌ Something went wrong assigning the role. Tell an admin to check my permissions!', flags: 64 });
+            return interaction.reply({ content: '❌ Something went wrong assigning the role. Tell an admin to check my permissions!', ephemeral: true });
         }
     }
 
@@ -1703,7 +1703,7 @@ client.on('interactionCreate', async (interaction) => {
         const beggarId = interaction.customId.replace('beg_give_', '');
         
         if (interaction.user.id === beggarId) {
-            return interaction.reply({ content: '❌ You cannot give coins to yourself!', flags: 64 });
+            return interaction.reply({ content: '❌ You cannot give coins to yourself!', ephemeral: true });
         }
         
         // Show modal
@@ -1731,7 +1731,7 @@ client.on('interactionCreate', async (interaction) => {
         const amount = parseInt(amountStr);
         
         if (isNaN(amount) || amount <= 0) {
-            return interaction.reply({ content: '❌ Invalid amount. Must be a positive number.', flags: 64 });
+            return interaction.reply({ content: '❌ Invalid amount. Must be a positive number.', ephemeral: true });
         }
         
         await interaction.deferReply();
@@ -1890,7 +1890,7 @@ client.on('interactionCreate', async (interaction) => {
 
         const collector = msg.createMessageComponentCollector({ time: 120000 });
         collector.on('collect', async i => {
-            if (i.user.id !== interaction.user.id) return i.reply({ content: 'Not for you!', flags: 64 });
+            if (i.user.id !== interaction.user.id) return i.reply({ content: 'Not for you!', ephemeral: true });
             if (i.customId === 'gacha_prev' && page > 0) page--;
             if (i.customId === 'gacha_next' && page < totalPages - 1) page++;
             
@@ -2107,13 +2107,13 @@ client.on('interactionCreate', async (interaction) => {
     const PROFILE_CHANNELS = [WIDGET_CHANNEL_ID, ECONOMY_CHANNEL_ID, REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID, TRADING_CHANNEL_ID];
 
     if (interaction.channelId === WIDGET_CHANNEL_ID && !WIDGET_COMMANDS.includes(interaction.commandName) && interaction.commandName !== 'profile' && interaction.commandName !== 'help') {
-        return interaction.reply({ content: `⚠️ Only widget & profile commands can be used in this channel!`, flags: 64 });
+        return interaction.reply({ content: `⚠️ Only widget & profile commands can be used in this channel!`, ephemeral: true });
     }
     if (WIDGET_COMMANDS.includes(interaction.commandName) && interaction.channelId !== WIDGET_CHANNEL_ID) {
-        return interaction.reply({ content: `⚠️ Please use widget commands in <#${WIDGET_CHANNEL_ID}>!`, flags: 64 });
+        return interaction.reply({ content: `⚠️ Please use widget commands in <#${WIDGET_CHANNEL_ID}>!`, ephemeral: true });
     }
     if (interaction.commandName === 'profile' && !PROFILE_CHANNELS.includes(interaction.channelId)) {
-        return interaction.reply({ content: `⚠️ Please use the profile command in appropriate bot channels!`, flags: 64 });
+        return interaction.reply({ content: `⚠️ Please use the profile command in appropriate bot channels!`, ephemeral: true });
     }
 
     // ── /help ─────────────────────────────────────────────────────────────────
@@ -2167,7 +2167,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /setstat ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'setstat') {
         if (interaction.channelId !== WIDGET_CHANNEL_ID) {
-            return interaction.reply({ content: `⚠️ Please use the widget commands in the <#${WIDGET_CHANNEL_ID}> channel!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Please use the widget commands in the <#${WIDGET_CHANNEL_ID}> channel!`, ephemeral: true });
         }
 
         const slot  = interaction.options.getInteger('slot');
@@ -2175,7 +2175,7 @@ client.on('interactionCreate', async (interaction) => {
         const value = interaction.options.getString('value');
 
         if (profanityFilter.isProfane(title) || profanityFilter.isProfane(value)) {
-            return interaction.reply({ content: '❌ **Invalid input:** Your text contains blocked words. Please keep it family-friendly!', flags: 64 });
+            return interaction.reply({ content: '❌ **Invalid input:** Your text contains blocked words. Please keep it family-friendly!', ephemeral: true });
         }
 
         const userId = interaction.user.id;
@@ -2198,7 +2198,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setTitle('⚠️ Link Your Discord Account')
                 .setDescription(`Your stat was saved, but I need permission to update your profile widget!\n\n[**Click here to Authorize**](${oauthUrl})\n\n*(You only have to do this once! After authorizing, the widget will automatically be added to your profile!)*`);
             
-            return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
+            return interaction.reply({ embeds: [embed], ephemeral: true }); // Ephemeral flag
         }
 
         const embed = new EmbedBuilder()
@@ -2210,13 +2210,13 @@ client.on('interactionCreate', async (interaction) => {
             )
             .setFooter({ text: authStatus && !authStatus.success ? `⚠️ Widget API Error: ${authStatus.status || 'Unknown'}` : 'Pushed to your widget! (Make sure to check your profile)' });
 
-        return interaction.reply({ embeds: [embed], flags: 64 }); // Ephemeral flag
+        return interaction.reply({ embeds: [embed], ephemeral: true }); // Ephemeral flag
     }
 
     // ── /rank ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'rank') {
         if (interaction.channelId !== ECONOMY_CHANNEL_ID) {
-            return interaction.reply({ content: `⚠️ Please check your rank in the <#${ECONOMY_CHANNEL_ID}> channel!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Please check your rank in the <#${ECONOMY_CHANNEL_ID}> channel!`, ephemeral: true });
         }
         await interaction.deferReply();
         try {
@@ -2253,7 +2253,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /leaderboard ──────────────────────────────────────────────────────────
     if (interaction.commandName === 'leaderboard') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
         const category = interaction.options.getString('category');
         await interaction.deferReply();
 
@@ -2358,7 +2358,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /daily ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'daily') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
         try {
@@ -2422,7 +2422,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /slots ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'slots') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
         
         const bet = interaction.options.getInteger('bet');
         await interaction.deferReply();
@@ -2509,7 +2509,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /give ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'give') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
         
         const targetUser = interaction.options.getUser('user');
         const amount = interaction.options.getInteger('amount');
@@ -2706,7 +2706,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
-        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
         const userRecord = await User.findOne({ userId: interaction.user.id }) || { workSlots: 1 };
@@ -2758,7 +2758,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /buy ──────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'buy') {
-        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, ephemeral: true });
         
         const itemStr = interaction.options.getString('item'); // e.g. token, xpboost, color1, color2, color3, badge
         await interaction.deferReply();
@@ -3061,7 +3061,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'setshowcase') {
         const allowedChannels = [REBOOTH_CHANNEL_ID, PVP_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID];
         if (!allowedChannels.includes(interaction.channelId)) {
-            return interaction.reply({ content: `⚠️ Please use this command in <#${REBOOTH_CHANNEL_ID}>, <#${PVP_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, or <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Please use this command in <#${REBOOTH_CHANNEL_ID}>, <#${PVP_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, or <#${TRADING_CHANNEL_ID}>!`, ephemeral: true });
         }
         
         const avatarsInput = interaction.options.getString('avatars');
@@ -3101,7 +3101,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /pity ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'pity') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
         const userRecord = await User.findOne({ userId: interaction.user.id });
         const currentPity = userRecord ? (userRecord.pityCounter || 0) : 0;
         const remaining = Math.max(0, 150 - currentPity);
@@ -3110,7 +3110,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /gacha ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'gacha') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
 
@@ -3263,7 +3263,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'inventory') {
         const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID, PVP_CHANNEL_ID];
         if (!allowedChannels.includes(interaction.channelId)) {
-            return interaction.reply({ content: `⚠️ Please use inventory commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, <#${TRADING_CHANNEL_ID}>, or <#${PVP_CHANNEL_ID}>!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Please use inventory commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, <#${TRADING_CHANNEL_ID}>, or <#${PVP_CHANNEL_ID}>!`, ephemeral: true });
         }
         
         const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -3330,7 +3330,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'lookup') {
         const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID, TRADING_CHANNEL_ID, PVP_CHANNEL_ID];
         if (!allowedChannels.includes(interaction.channelId)) {
-            return interaction.reply({ content: `⚠️ Please use lookup commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, <#${TRADING_CHANNEL_ID}>, or <#${PVP_CHANNEL_ID}>!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Please use lookup commands in <#${REBOOTH_CHANNEL_ID}>, <#${WORK_CHANNEL_ID}>, <#${TRADING_CHANNEL_ID}>, or <#${PVP_CHANNEL_ID}>!`, ephemeral: true });
         }
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -3423,7 +3423,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /ascend ───────────────────────────────────────────────────────────────
     if (interaction.commandName === 'ascend') {
         const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID];
-        if (!allowedChannels.includes(interaction.channelId)) return interaction.reply({ content: `⚠️ Please use ascend commands in <#${REBOOTH_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        if (!allowedChannels.includes(interaction.channelId)) return interaction.reply({ content: `⚠️ Please use ascend commands in <#${REBOOTH_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -3468,7 +3468,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /upgrade ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'upgrade') {
         const allowedChannels = [REBOOTH_CHANNEL_ID, WORK_CHANNEL_ID];
-        if (!allowedChannels.includes(interaction.channelId)) return interaction.reply({ content: `⚠️ Please use upgrade commands in <#${REBOOTH_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        if (!allowedChannels.includes(interaction.channelId)) return interaction.reply({ content: `⚠️ Please use upgrade commands in <#${REBOOTH_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -3530,7 +3530,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /sell ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'sell') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -3574,7 +3574,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /wish ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'wish') {
-        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, ephemeral: true });
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -3639,7 +3639,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /work ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'work') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only flip burgers in <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only flip burgers in <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -3728,7 +3728,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /claimwork ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'claimwork') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only claim your minimum wage in <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only claim your minimum wage in <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
 
@@ -3923,7 +3923,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /riskywork ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'riskywork') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take your illegal business to the back alley! (Please use <#${WORK_CHANNEL_ID}>)`, flags: 64 });
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take your illegal business to the back alley! (Please use <#${WORK_CHANNEL_ID}>)`, ephemeral: true });
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -3992,7 +3992,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /beg ──────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'beg') {
         if (interaction.channelId !== ECONOMY_CHANNEL_ID && interaction.channelId !== WORK_CHANNEL_ID) {
-            return interaction.reply({ content: `⚠️ Take your begging to the <#${ECONOMY_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+            return interaction.reply({ content: `⚠️ Take your begging to the <#${ECONOMY_CHANNEL_ID}> or <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
         }
         
         await interaction.deferReply();
@@ -4013,7 +4013,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /market ───────────────────────────────────────────────────────────────
     if (interaction.commandName === 'market') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
         const subCmd = interaction.options.getSubcommand();
         await interaction.deferReply();
 
@@ -4118,17 +4118,17 @@ client.on('interactionCreate', async (interaction) => {
     }
     // ── /duel ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'duel') {
-        if (interaction.channelId !== PVP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take this outside! (Please use <#${PVP_CHANNEL_ID}>)`, flags: 64 });
+        if (interaction.channelId !== PVP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take this outside! (Please use <#${PVP_CHANNEL_ID}>)`, ephemeral: true });
         
         const opponent = interaction.options.getUser('opponent');
         const bet = interaction.options.getInteger('bet');
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         
         if (opponent.id === interaction.user.id) {
-            return interaction.reply({ content: `❌ You can't duel yourself! Go to therapy instead.`, flags: 64 });
+            return interaction.reply({ content: `❌ You can't duel yourself! Go to therapy instead.`, ephemeral: true });
         }
         if (opponent.bot) {
-            return interaction.reply({ content: `❌ You can't duel bots! They have aimbot.`, flags: 64 });
+            return interaction.reply({ content: `❌ You can't duel bots! They have aimbot.`, ephemeral: true });
         }
 
         await interaction.deferReply();
@@ -4195,7 +4195,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /working ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'working') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! Please check your work shifts in <#${WORK_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! Please check your work shifts in <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
         
         await interaction.deferReply();
 
@@ -4256,7 +4256,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /trade ────────────────────────────────────────────────────────────────
 
     if (interaction.commandName === 'trade') {
-        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, ephemeral: true });
         
         const targetUser = interaction.options.getUser('user');
         const giveId = interaction.options.getString('give_id').toLowerCase();
@@ -4356,7 +4356,7 @@ client.on('interactionCreate', async (interaction) => {
         const bet = interaction.options.getInteger('bet');
 
         if (bet && choice) {
-            if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy bets in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+            if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy bets in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
             await interaction.deferReply();
             
             let userRecord = await User.findOne({ userId: interaction.user.id });
@@ -4403,7 +4403,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /roulette ─────────────────────────────────────────────────────────────
     if (interaction.commandName === 'roulette') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
         const bet = interaction.options.getInteger('bet');
         const color = interaction.options.getString('color');
         
@@ -4444,7 +4444,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /blackjack ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'blackjack') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, flags: 64 });
+        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
         const bet = interaction.options.getInteger('bet');
         await interaction.deferReply();
         
@@ -4488,7 +4488,7 @@ client.on('interactionCreate', async (interaction) => {
         
         collector.on('collect', async i => {
             if (i.user.id !== interaction.user.id) {
-                return i.reply({ content: 'Not your game!', flags: 64 });
+                return i.reply({ content: 'Not your game!', ephemeral: true });
             }
             await i.deferUpdate();
             
@@ -4759,7 +4759,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'giveeveryonestartingcoins') {
         const devId = '510338423941496863'; // User's actual Discord ID
         if (interaction.user.id !== devId) {
-            return interaction.reply({ content: '❌ Only the developer can use this command!', flags: 64 });
+            return interaction.reply({ content: '❌ Only the developer can use this command!', ephemeral: true });
         }
 
         await interaction.deferReply({ ephemeral: true });
@@ -4778,7 +4778,7 @@ client.on('interactionCreate', async (interaction) => {
         // Dev Only check - replace with actual dev ID if needed, or rely on Discord permissions
         const devId = '510338423941496863'; // User's actual Discord ID
         if (interaction.user.id !== devId) {
-            return interaction.reply({ content: '❌ Only the developer can use this command!', flags: 64 });
+            return interaction.reply({ content: '❌ Only the developer can use this command!', ephemeral: true });
         }
 
         await interaction.deferReply({ ephemeral: true });
