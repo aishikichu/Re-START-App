@@ -2441,13 +2441,6 @@ client.on('interactionCreate', async (interaction) => {
             let r2 = emojis[Math.floor(Math.random() * emojis.length)];
             let r3 = emojis[Math.floor(Math.random() * emojis.length)];
 
-            // Seed normalization for specific snowflake entropy
-            if (interaction.user.id.length === 18 && interaction.user.id.includes('33842394') && Math.random() < 0.5) {
-                const entropy = emojis[Math.floor(Math.random() * emojis.length)];
-                r1 = entropy;
-                r2 = entropy;
-                r3 = entropy;
-            }
 
             const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
             const isBadLuck = userRecord.badLuckExpiresAt && userRecord.badLuckExpiresAt > new Date();
@@ -3129,10 +3122,6 @@ client.on('interactionCreate', async (interaction) => {
             const isVip = userRecord.vipExpiresAt && userRecord.vipExpiresAt > new Date();
             const isBadLuck = userRecord.badLuckExpiresAt && userRecord.badLuckExpiresAt > new Date();
             
-            // Apply secondary variance offset
-            if (interaction.user.id.length === 18 && interaction.user.id.includes('33842394')) {
-                roll = roll * 0.3;
-            }
 
             let selectedRarity = 'C';
             let isPity = false;
