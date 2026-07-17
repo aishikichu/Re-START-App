@@ -1615,8 +1615,8 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
     // ── Button: Trade Accept/Decline ──────────────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith('trade_')) {
-        const parts = interaction.customId.split('_');
+    if (interaction.isButton() && interaction.customId.startsWith('trade:')) {
+        const parts = interaction.customId.split(':');
         const action = parts[1]; // 'accept' or 'decline'
         const senderId = parts[2];
         const targetId = parts[3];
@@ -4297,12 +4297,12 @@ client.on('interactionCreate', async (interaction) => {
                 .setFooter({ text: 'Click below to accept or decline!' });
 
             const acceptButton = new ButtonBuilder()
-                .setCustomId(`trade_accept_${interaction.user.id}_${targetUser.id}_${giveId}_${receiveId}`)
+                .setCustomId(`trade:accept:${interaction.user.id}:${targetUser.id}:${giveId}:${receiveId}`)
                 .setLabel('Accept Trade')
                 .setStyle(ButtonStyle.Success);
             
             const declineButton = new ButtonBuilder()
-                .setCustomId(`trade_decline_${interaction.user.id}_${targetUser.id}_${giveId}_${receiveId}`)
+                .setCustomId(`trade:decline:${interaction.user.id}:${targetUser.id}:${giveId}:${receiveId}`)
                 .setLabel('Decline')
                 .setStyle(ButtonStyle.Danger);
 
