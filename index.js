@@ -85,6 +85,24 @@ function saveData(data) {
     fs.writeFileSync('./data.json', JSON.stringify(data, null, 2));
 }
 
+// Smart Channel Name Matching Filter
+function checkChannelAllowed(interaction, keywords, featureName) {
+    if (!interaction.channel || !interaction.guild) return true;
+    const channelName = (interaction.channel.name || '').toLowerCase();
+    const defaultKeywords = ['bot', 'command', 'spam', 'test', 'admin', 'staff', 'dev'];
+    const allKeywords = [...keywords, ...defaultKeywords];
+
+    const isAllowed = allKeywords.some(kw => channelName.includes(kw));
+    if (!isAllowed) {
+        interaction.reply({
+            content: `⚠️ Please use **/${interaction.commandName}** in a designated **${featureName}** or **#bot-commands** channel!`,
+            ephemeral: true
+        }).catch(() => {});
+        return false;
+    }
+    return true;
+}
+
 // ─── Widget Updater ───────────────────────────────────────────────────────────
 // Uses the /identities/0/profile PATCH endpoint via the Bot Token
 async function updatePlayerWidget(userId) {
@@ -2747,6 +2765,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
+        if (!checkChannelAllowed(interaction, ['shop', 'store', 'market', 'buy'], 'shop')) return;
         await interaction.deferReply();
         const userRecord = await User.findOne({ userId: interaction.user.id }) || { workSlots: 1 };
         
@@ -2801,7 +2820,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /buy ──────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'buy') {
-        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['shop', 'store', 'market', 'buy'], 'shop')) return;
         
         const itemStr = interaction.options.getString('item'); // e.g. token, xpboost, color1, color2, color3, badge
         await interaction.deferReply();
@@ -2997,6 +3016,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /profile ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'profile') {
+        if (!checkChannelAllowed(interaction, ['profile', 'widget', 'user', 'stat'], 'profile')) return;
         const targetUser = interaction.options.getUser('user') || interaction.user;
         await interaction.deferReply();
 
@@ -3157,11 +3177,8 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /gacha ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'gacha') {
+        if (!checkChannelAllowed(interaction, ['gacha', 'booth', 'roll', 'summon'], 'gacha')) return;
         await interaction.deferReply().catch(() => {});
-
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) {
-            return interaction.editReply(`⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`);
-        }
 
         try {
             let userRecord = await User.findOne({ userId: interaction.user.id });
@@ -3708,7 +3725,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /work ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'work') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only flip burgers in <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['work', 'job', 'task', 'wage'], 'work')) return;
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
