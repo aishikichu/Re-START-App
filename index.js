@@ -2170,16 +2170,6 @@ client.on('interactionCreate', async (interaction) => {
     const WIDGET_COMMANDS = ['setstat'];
     const PROFILE_CHANNELS = [WIDGET_CHANNEL_ID, ECONOMY_CHANNEL_ID, REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID, TRADING_CHANNEL_ID];
 
-    if (interaction.channelId === WIDGET_CHANNEL_ID && !WIDGET_COMMANDS.includes(interaction.commandName) && interaction.commandName !== 'profile' && interaction.commandName !== 'help') {
-        return interaction.reply({ content: `⚠️ Only widget & profile commands can be used in this channel!`, ephemeral: true });
-    }
-    if (WIDGET_COMMANDS.includes(interaction.commandName) && interaction.channelId !== WIDGET_CHANNEL_ID) {
-        return interaction.reply({ content: `⚠️ Please use widget commands in <#${WIDGET_CHANNEL_ID}>!`, ephemeral: true });
-    }
-    if (interaction.commandName === 'profile' && !PROFILE_CHANNELS.includes(interaction.channelId)) {
-        return interaction.reply({ content: `⚠️ Please use the profile command in appropriate bot channels!`, ephemeral: true });
-    }
-
     // ── /help ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'help') {
         const embed = new EmbedBuilder()
@@ -2230,9 +2220,6 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /setstat ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'setstat') {
-        if (interaction.channelId !== WIDGET_CHANNEL_ID) {
-            return interaction.reply({ content: `⚠️ Please use the widget commands in the <#${WIDGET_CHANNEL_ID}> channel!`, ephemeral: true });
-        }
 
         const slot  = interaction.options.getInteger('slot');
         const title = interaction.options.getString('title');
@@ -2279,9 +2266,6 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /rank ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'rank') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) {
-            return interaction.reply({ content: `⚠️ Please check your rank in the <#${ECONOMY_CHANNEL_ID}> channel!`, ephemeral: true });
-        }
         await interaction.deferReply();
         try {
             if (mongoose.connection.readyState !== 1) {
@@ -2763,8 +2747,6 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
-        if (interaction.channelId !== SHOP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use shop commands in <#${SHOP_CHANNEL_ID}>!`, ephemeral: true });
-        
         await interaction.deferReply();
         const userRecord = await User.findOne({ userId: interaction.user.id }) || { workSlots: 1 };
         
