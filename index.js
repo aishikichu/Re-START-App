@@ -85,17 +85,32 @@ function saveData(data) {
     fs.writeFileSync('./data.json', JSON.stringify(data, null, 2));
 }
 
-// Smart Channel Name Matching Filter
-function checkChannelAllowed(interaction, keywords, featureName) {
+// Smart Channel Name & ID Matching Filter
+function checkChannelAllowed(interaction, keywords, featureName, allowedChannelIds = null) {
     if (!interaction.channel || !interaction.guild) return true;
+
+    // Direct channel ID check (single ID or array of IDs)
+    if (allowedChannelIds) {
+        if (Array.isArray(allowedChannelIds)) {
+            if (allowedChannelIds.includes(interaction.channelId)) return true;
+        } else if (interaction.channelId === allowedChannelIds) {
+            return true;
+        }
+    }
+
     const channelName = (interaction.channel.name || '').toLowerCase();
     const defaultKeywords = ['bot', 'command', 'spam', 'test', 'admin', 'staff', 'dev'];
     const allKeywords = [...keywords, ...defaultKeywords];
 
     const isAllowed = allKeywords.some(kw => channelName.includes(kw));
     if (!isAllowed) {
+        let channelMention = '**#bot-commands**';
+        if (allowedChannelIds) {
+            const primaryId = Array.isArray(allowedChannelIds) ? allowedChannelIds[0] : allowedChannelIds;
+            if (primaryId) channelMention = `<#${primaryId}>`;
+        }
         interaction.reply({
-            content: `⚠️ Please use **/${interaction.commandName}** in a designated **${featureName}** or **#bot-commands** channel!`,
+            content: `⚠️ Please use **/${interaction.commandName}** in a designated **${featureName}** or ${channelMention} channel!`,
             ephemeral: true
         }).catch(() => {});
         return false;
@@ -2186,7 +2201,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // Enforce Widget Channel
     const WIDGET_COMMANDS = ['setstat'];
-    const PROFILE_CHANNELS = [WIDGET_CHANNEL_ID, ECONOMY_CHANNEL_ID, REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID, TRADING_CHANNEL_ID];
+    const PROFILE_CHANNELS = [WIDGET_CHANNEL_ID, ECONOMY_CHANNEL_ID, REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID, TRADING_CHANNEL_ID, WORK_CHANNEL_ID, PVP_CHANNEL_ID];
 
     // ── /help ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'help') {
@@ -2319,7 +2334,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /leaderboard ──────────────────────────────────────────────────────────
     if (interaction.commandName === 'leaderboard') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['economy', 'leaderboard', 'coins', 'level'], 'economy', ECONOMY_CHANNEL_ID)) return;
         const category = interaction.options.getString('category');
         await interaction.deferReply();
 
@@ -2424,7 +2439,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /daily ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'daily') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['economy', 'daily', 'reward'], 'economy', [ECONOMY_CHANNEL_ID, WORK_CHANNEL_ID])) return;
         
         await interaction.deferReply();
         try {
@@ -2488,7 +2503,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /slots ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'slots') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['economy', 'slots', 'casino', 'bet'], 'economy', ECONOMY_CHANNEL_ID)) return;
         
         const bet = interaction.options.getInteger('bet');
         await interaction.deferReply();
@@ -2568,7 +2583,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /give ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'give') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['economy', 'give', 'coins', 'trade'], 'economy', [ECONOMY_CHANNEL_ID, WORK_CHANNEL_ID])) return;
         
         const targetUser = interaction.options.getUser('user');
         const amount = interaction.options.getInteger('amount');
@@ -4489,7 +4504,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /roulette ─────────────────────────────────────────────────────────────
     if (interaction.commandName === 'roulette') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['economy', 'casino', 'bet', 'roulette'], 'economy', ECONOMY_CHANNEL_ID)) return;
         const bet = interaction.options.getInteger('bet');
         const color = interaction.options.getString('color');
         
@@ -4530,7 +4545,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /blackjack ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'blackjack') {
-        if (interaction.channelId !== ECONOMY_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use economy commands in <#${ECONOMY_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['economy', 'casino', 'bet', 'blackjack'], 'economy', ECONOMY_CHANNEL_ID)) return;
         const bet = interaction.options.getInteger('bet');
         await interaction.deferReply();
         
