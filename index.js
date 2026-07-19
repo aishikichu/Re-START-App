@@ -15,7 +15,8 @@ const {
     AttachmentBuilder,
     ModalBuilder,
     TextInputBuilder,
-    TextInputStyle
+    TextInputStyle,
+    MessageFlags
 } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -1027,21 +1028,20 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── Button: Grab Coins ────────────────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('grab_coins_')) {
-        const dropAmount = parseInt(interaction.customId.split('_')[2]);
+        await interaction.deferUpdate().catch(() => {});
+        const dropAmount = parseInt(interaction.customId.split('_')[2]) || 100;
         const claimerId = interaction.user.id;
 
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
+                return interaction.followUp({ content: '❌ Processing another claim...', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
             activeClaimLocks.add(interaction.message.id);
 
-            if (interaction.message.components[0].components[0].disabled) {
+            if (interaction.message?.components?.[0]?.components?.[0]?.disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already grabbed these coins.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Too late! Someone already grabbed these coins.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
-
-            await interaction.deferUpdate();
 
             let userRecord = await User.findOne({ userId: claimerId });
             if (!userRecord) userRecord = new User({ userId: claimerId });
@@ -1056,37 +1056,37 @@ client.on('interactionCreate', async (interaction) => {
                 .setDisabled(true);
 
             const row = new ActionRowBuilder().addComponents(disabledButton);
-            const embed = EmbedBuilder.from(interaction.message.embeds[0])
-                .setColor(0x95a5a6)
-                .setFooter({ text: `💰 Claimed by ${interaction.user.username}` });
+            const origEmbed = interaction.message?.embeds?.[0];
+            const embed = origEmbed 
+                ? EmbedBuilder.from(origEmbed).setColor(0x95a5a6).setFooter({ text: `💰 Claimed by ${interaction.user.username}` })
+                : new EmbedBuilder().setColor(0x95a5a6).setTitle('💰 Random Coin Drop!').setDescription(`Claimed by **${interaction.user.username}**!`);
 
             await interaction.editReply({ embeds: [embed], components: [row] });
             activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
-            console.error(err);
+            console.error('Error in grab_coins_ handler:', err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.followUp({ content: '❌ Error claiming coins!', ephemeral: true }).catch(() => {});
+            return interaction.followUp({ content: '❌ Error claiming coins!', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
     }
 
     // ── Button: Grab Card ─────────────────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('grab_card_')) {
+        await interaction.deferUpdate().catch(() => {});
         const cardId = interaction.customId.replace('grab_card_', '');
         const claimerId = interaction.user.id;
 
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
+                return interaction.followUp({ content: '❌ Processing another claim...', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
             activeClaimLocks.add(interaction.message.id);
 
-            if (interaction.message.components[0].components[0].disabled) {
+            if (interaction.message?.components?.[0]?.components?.[0]?.disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already grabbed this card.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Too late! Someone already grabbed this card.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
-
-            await interaction.deferUpdate();
 
             let userRecord = await User.findOne({ userId: claimerId });
             if (!userRecord) userRecord = new User({ userId: claimerId });
@@ -1097,7 +1097,7 @@ client.on('interactionCreate', async (interaction) => {
 
             if (activeAvatarLocks.has(cardId)) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.followUp({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true }).catch(() => {});
+                return interaction.followUp({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
             activeAvatarLocks.add(cardId);
 
@@ -1106,92 +1106,93 @@ client.on('interactionCreate', async (interaction) => {
                 const alreadyOwns = userRecord.inventory.includes(cardId);
 
                 if (!globallyOwned) {
-                // Full Claim
-                if (userRecord.lastCardDropClaimDate && userRecord.lastCardDropClaimDate > oneHourAgo) {
+                    // Full Claim
+                    if (userRecord.lastCardDropClaimDate && userRecord.lastCardDropClaimDate > oneHourAgo) {
+                        activeClaimLocks.delete(interaction.message.id);
+                        return interaction.followUp({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: MessageFlags.Ephemeral }).catch(() => {});
+                    }
+                    userRecord.inventory.push(cardId);
+                    userRecord.lastCardDropClaimDate = now;
+                    userRecord.markModified('lastCardDropClaimDate');
+                    userRecord.markModified('inventory');
+                    await userRecord.save();
+
+                    const disabledButton = new ButtonBuilder()
+                        .setCustomId('claimed_already')
+                        .setLabel(`Claimed by ${interaction.user.username}`)
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true);
+
+                    const row = new ActionRowBuilder().addComponents(disabledButton);
+                    const origEmbed = interaction.message?.embeds?.[0];
+                    const embed = origEmbed 
+                        ? EmbedBuilder.from(origEmbed).setColor(0x95a5a6).setFooter({ text: `✨ Card claimed by ${interaction.user.username}` })
+                        : new EmbedBuilder().setColor(0x95a5a6).setTitle('✨ Card Claimed').setDescription(`Claimed by **${interaction.user.username}**!`);
+
+                    await interaction.editReply({ embeds: [embed], components: [row] });
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.followUp({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
-                }
-                userRecord.inventory.push(cardId);
-                userRecord.lastCardDropClaimDate = now;
-                userRecord.markModified('lastCardDropClaimDate');
-                userRecord.markModified('inventory');
-                await userRecord.save();
+                    return;
+                } else {
+                    // Coin Snipe
+                    if (userRecord.lastCoinSnipeReset && userRecord.lastCoinSnipeReset < oneHourAgo) {
+                        userRecord.coinSnipeCount = 0;
+                        userRecord.lastCoinSnipeReset = now;
+                    }
+                    if (userRecord.coinSnipeCount >= 5) {
+                        activeClaimLocks.delete(interaction.message.id);
+                        return interaction.followUp({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: MessageFlags.Ephemeral }).catch(() => {});
+                    }
 
-                const disabledButton = new ButtonBuilder()
-                    .setCustomId('claimed_already')
-                    .setLabel(`Claimed by ${interaction.user.username}`)
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true);
+                    if (userRecord.coinSnipeCount === 0 || !userRecord.lastCoinSnipeReset) {
+                        userRecord.lastCoinSnipeReset = now;
+                        userRecord.markModified('lastCoinSnipeReset');
+                    }
+                    
+                    userRecord.coinSnipeCount += 1;
+                    userRecord.markModified('coinSnipeCount');
+                    const snipeCoins = Math.floor(cardData.value / 2); // get half value in coins
+                    userRecord.coins += snipeCoins;
+                    await userRecord.save();
 
-                const row = new ActionRowBuilder().addComponents(disabledButton);
-                const embed = EmbedBuilder.from(interaction.message.embeds[0])
-                    .setColor(0x95a5a6)
-                    .setFooter({ text: `✨ Card claimed by ${interaction.user.username}` });
+                    const disabledButton = new ButtonBuilder()
+                        .setCustomId('claimed_already')
+                        .setLabel(`Sniped by ${interaction.user.username}`)
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true);
 
-                await interaction.editReply({ embeds: [embed], components: [row] });
-                activeClaimLocks.delete(interaction.message.id);
-                return;
-            } else {
-                // Coin Snipe
-                if (userRecord.lastCoinSnipeReset && userRecord.lastCoinSnipeReset < oneHourAgo) {
-                    userRecord.coinSnipeCount = 0;
-                    userRecord.lastCoinSnipeReset = now;
-                }
-                if (userRecord.coinSnipeCount >= 5) {
+                    const row = new ActionRowBuilder().addComponents(disabledButton);
+                    const origEmbed = interaction.message?.embeds?.[0];
+                    const embed = origEmbed
+                        ? EmbedBuilder.from(origEmbed).setColor(0x95a5a6).setFooter({ text: `🪙 Sniped by ${interaction.user.username} for ${snipeCoins} Coins!` })
+                        : new EmbedBuilder().setColor(0x95a5a6).setTitle('✨ Card Sniped').setDescription(`Sniped by **${interaction.user.username}** for ${snipeCoins} Coins!`);
+
+                    await interaction.editReply({ embeds: [embed], components: [row] });
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.followUp({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
+                    return;
                 }
-
-                if (userRecord.coinSnipeCount === 0 || !userRecord.lastCoinSnipeReset) {
-                    userRecord.lastCoinSnipeReset = now;
-                    userRecord.markModified('lastCoinSnipeReset');
-                }
-                
-                userRecord.coinSnipeCount += 1;
-                userRecord.markModified('coinSnipeCount');
-                const snipeCoins = Math.floor(cardData.value / 2); // get half value in coins
-                userRecord.coins += snipeCoins;
-                await userRecord.save();
-
-                const disabledButton = new ButtonBuilder()
-                    .setCustomId('claimed_already')
-                    .setLabel(`Sniped by ${interaction.user.username}`)
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true);
-
-                const row = new ActionRowBuilder().addComponents(disabledButton);
-                const embed = EmbedBuilder.from(interaction.message.embeds[0])
-                    .setColor(0x95a5a6)
-                    .setFooter({ text: `🪙 Sniped by ${interaction.user.username} for ${snipeCoins} Coins!` });
-
-                await interaction.editReply({ embeds: [embed], components: [row] });
-                activeClaimLocks.delete(interaction.message.id);
-                return;
-            }
             } finally {
                 activeAvatarLocks.delete(cardId);
             }
         } catch (err) {
-            console.error(err);
+            console.error('Error in grab_card_ handler:', err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.followUp({ content: '❌ Error claiming card!', ephemeral: true }).catch(() => {});
+            return interaction.followUp({ content: '❌ Error claiming card!', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
     }
 
     // ── Button: Grab Star ─────────────────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('grab_star_')) {
+        await interaction.deferUpdate().catch(() => {});
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
+                return interaction.followUp({ content: '❌ Processing another claim...', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
             activeClaimLocks.add(interaction.message.id);
 
-            if (interaction.message.components[0].components[0].disabled) {
+            if (interaction.message?.components?.[0]?.components?.[0]?.disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this star.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Too late! Someone already claimed this star.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
-
-            await interaction.deferUpdate();
 
             let userRecord = await User.findOne({ userId: interaction.user.id });
             if (!userRecord) userRecord = new User({ userId: interaction.user.id });
@@ -1230,15 +1231,18 @@ client.on('interactionCreate', async (interaction) => {
                 .setDescription(resultMsg);
 
             await interaction.editReply({ embeds: [embed], components: [row] });
+            activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
-            console.error(err);
-            return interaction.followUp({ content: '❌ Error claiming star!', ephemeral: true }).catch(() => {});
+            console.error('Error in grab_star_ handler:', err);
+            activeClaimLocks.delete(interaction.message.id);
+            return interaction.followUp({ content: '❌ Error claiming star!', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
     }
 
     // ── Button: Gacha Claim ───────────────────────────────────────────────────
     if (interaction.isButton() && (interaction.customId.startsWith('claim_') || interaction.customId.startsWith('claim:'))) {
+        await interaction.deferUpdate().catch(() => {});
         const claimerId = interaction.user.id;
         let modelId, rollerId;
 
@@ -1249,44 +1253,39 @@ client.on('interactionCreate', async (interaction) => {
             rollerId = parts[2];
             const timestamp = parseInt(parts[3]);
             if (Date.now() - timestamp > 20000) {
-                return interaction.reply({ content: '❌ This drop has expired (20 second limit)!', ephemeral: true });
+                return interaction.followUp({ content: '❌ This drop has expired (20 second limit)!', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
         } else {
             // Old format: claim_model_id_roller_id_timestamp OR claim_model_id_timestamp
             const withoutPrefix = interaction.customId.replace('claim_', '');
             const model = gachaPool.find(m => withoutPrefix.startsWith(m.id));
-            if (!model) return interaction.reply({ content: '❌ Error: Avatar not found!', ephemeral: true });
+            if (!model) return interaction.followUp({ content: '❌ Error: Avatar not found!', flags: MessageFlags.Ephemeral }).catch(() => {});
             modelId = model.id;
             
             const remainder = withoutPrefix.replace(model.id + '_', '');
             if (remainder.includes('_')) {
-                rollerId = remainder.split('_')[0]; // It was the broken new format from earlier
+                rollerId = remainder.split('_')[0];
             } else {
-                rollerId = claimerId; // It was the very old format, assume they are legit
+                rollerId = claimerId;
             }
         }
 
         try {
-            // Check memory lock to prevent race condition
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Too late! Someone already claimed this.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
 
-            // Check if button is already claimed
-            if (interaction.message.components[0].components[0].disabled) {
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this.', ephemeral: true });
+            if (interaction.message?.components?.[0]?.components?.[0]?.disabled) {
+                return interaction.followUp({ content: '❌ Too late! Someone already claimed this.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
 
-            await interaction.deferUpdate();
-
-            // Lock the message
             activeClaimLocks.add(interaction.message.id);
             setTimeout(() => activeClaimLocks.delete(interaction.message.id), 60000);
 
             let claimerRecord = await User.findOne({ userId: claimerId });
             if (!claimerRecord) claimerRecord = new User({ userId: claimerId });
 
-            const model = gachaPool.find(m => m.id === modelId);
+            const model = gachaPool.find(m => m.id === modelId) || { id: modelId, name: 'Avatar', value: 100 };
 
             let claimMsg = '';
             
@@ -1295,7 +1294,7 @@ client.on('interactionCreate', async (interaction) => {
             
             if (activeAvatarLocks.has(modelId)) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.followUp({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true }).catch(() => {});
+                return interaction.followUp({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
             activeAvatarLocks.add(modelId);
 
@@ -1304,73 +1303,69 @@ client.on('interactionCreate', async (interaction) => {
                 const alreadyOwns = claimerRecord.inventory.includes(modelId);
 
                 if (!globallyOwned) {
-                // FULL CLAIM
-                if (claimerRecord.lastCardDropClaimDate && claimerRecord.lastCardDropClaimDate > oneHourAgo) {
-                    activeClaimLocks.delete(interaction.message.id);
-                    return interaction.followUp({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
-                }
+                    // FULL CLAIM
+                    if (claimerRecord.lastCardDropClaimDate && claimerRecord.lastCardDropClaimDate > oneHourAgo) {
+                        activeClaimLocks.delete(interaction.message.id);
+                        return interaction.followUp({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: MessageFlags.Ephemeral }).catch(() => {});
+                    }
 
-                claimerRecord.inventory.push(modelId);
-                claimerRecord.lastCardDropClaimDate = now;
-                claimerRecord.markModified('lastCardDropClaimDate');
-                claimerRecord.markModified('inventory');
+                    claimerRecord.inventory.push(modelId);
+                    claimerRecord.lastCardDropClaimDate = now;
+                    claimerRecord.markModified('lastCardDropClaimDate');
+                    claimerRecord.markModified('inventory');
 
-                if (claimerId !== rollerId) {
-                    claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and added the avatar to their inventory!`;
-                } else {
-                    claimMsg = `💖 **Claimed!** <@${claimerId}> added the avatar to their inventory!`;
-                }
-            } else {
-                // DUPE / COIN SNIPE
-                if (claimerRecord.lastCoinSnipeReset && claimerRecord.lastCoinSnipeReset < oneHourAgo) {
-                    claimerRecord.coinSnipeCount = 0;
-                    claimerRecord.lastCoinSnipeReset = now;
-                    claimerRecord.markModified('lastCoinSnipeReset');
-                }
-                if (claimerRecord.coinSnipeCount >= 5) {
-                    activeClaimLocks.delete(interaction.message.id);
-                    return interaction.followUp({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
-                }
-
-                if (claimerRecord.coinSnipeCount === 0 || !claimerRecord.lastCoinSnipeReset) {
-                    claimerRecord.lastCoinSnipeReset = now;
-                    claimerRecord.markModified('lastCoinSnipeReset');
-                }
-                claimerRecord.coinSnipeCount += 1;
-                claimerRecord.markModified('coinSnipeCount');
-
-                if (claimerId !== rollerId) {
-                    // Sniper gets Coins!
-                    const snipeCoins = Math.floor((model.value || 100) / 2);
-                    claimerRecord.coins += snipeCoins;
-                    if (alreadyOwns) {
-                        claimMsg = `🔫 **SNIPED!** <@${claimerId}> already owns this, so they sniped it for **🪙 ${snipeCoins} Coins** instead!`;
+                    if (claimerId !== rollerId) {
+                        claimMsg = `🔫 **SNIPED!** <@${claimerId}> stole the drop and added the avatar to their inventory!`;
                     } else {
-                        claimMsg = `🔫 **SNIPED!** <@${claimerId}> sniped this drop for **🪙 ${snipeCoins} Coins** since it's already owned!`;
+                        claimMsg = `💖 **Claimed!** <@${claimerId}> added the avatar to their inventory!`;
                     }
                 } else {
-                    if (alreadyOwns) {
-                        // Roller gets Affinity!
-                        if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
-                        const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
-                        claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
-                        
-                        const percent = Math.min((currentAff + 1) * 10, 100);
-                        claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
-                    } else {
-                        // Someone else owns it globally
+                    // DUPE / COIN SNIPE
+                    if (claimerRecord.lastCoinSnipeReset && claimerRecord.lastCoinSnipeReset < oneHourAgo) {
+                        claimerRecord.coinSnipeCount = 0;
+                        claimerRecord.lastCoinSnipeReset = now;
+                        claimerRecord.markModified('lastCoinSnipeReset');
+                    }
+                    if (claimerRecord.coinSnipeCount >= 5) {
+                        activeClaimLocks.delete(interaction.message.id);
+                        return interaction.followUp({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, flags: MessageFlags.Ephemeral }).catch(() => {});
+                    }
+
+                    if (claimerRecord.coinSnipeCount === 0 || !claimerRecord.lastCoinSnipeReset) {
+                        claimerRecord.lastCoinSnipeReset = now;
+                        claimerRecord.markModified('lastCoinSnipeReset');
+                    }
+                    claimerRecord.coinSnipeCount += 1;
+                    claimerRecord.markModified('coinSnipeCount');
+
+                    if (claimerId !== rollerId) {
                         const snipeCoins = Math.floor((model.value || 100) / 2);
                         claimerRecord.coins += snipeCoins;
-                        claimMsg = `💖 **Owned Already!** <@${claimerId}> rolled an avatar that is already owned! They received **🪙 ${snipeCoins} Coins** as compensation!`;
+                        if (alreadyOwns) {
+                            claimMsg = `🔫 **SNIPED!** <@${claimerId}> already owns this, so they sniped it for **🪙 ${snipeCoins} Coins** instead!`;
+                        } else {
+                            claimMsg = `🔫 **SNIPED!** <@${claimerId}> sniped this drop for **🪙 ${snipeCoins} Coins** since it's already owned!`;
+                        }
+                    } else {
+                        if (alreadyOwns) {
+                            if (!claimerRecord.avatarAffinity) claimerRecord.avatarAffinity = new Map();
+                            const currentAff = claimerRecord.avatarAffinity.get(modelId) || 0;
+                            claimerRecord.avatarAffinity.set(modelId, currentAff + 1);
+                            
+                            const percent = Math.min((currentAff + 1) * 10, 100);
+                            claimMsg = `💖 **Duplicate!** <@${claimerId}> already owned this avatar! They got **+10% Affinity** (${percent}% Total)!`;
+                        } else {
+                            const snipeCoins = Math.floor((model.value || 100) / 2);
+                            claimerRecord.coins += snipeCoins;
+                            claimMsg = `💖 **Owned Already!** <@${claimerId}> rolled an avatar that is already owned! They received **🪙 ${snipeCoins} Coins** as compensation!`;
+                        }
                     }
                 }
-            }
                 await claimerRecord.save();
             } finally {
                 activeAvatarLocks.delete(modelId);
             }
 
-            // Disable the button and update message
             const disabledButton = new ButtonBuilder()
                 .setCustomId('claimed_already')
                 .setLabel(`Claimed by ${interaction.user.username}`)
@@ -1378,25 +1373,36 @@ client.on('interactionCreate', async (interaction) => {
                 .setDisabled(true);
 
             const row = new ActionRowBuilder().addComponents(disabledButton);
-            const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+            const origEmbed = interaction.message?.embeds?.[0];
+            const embed = origEmbed ? EmbedBuilder.from(origEmbed) : new EmbedBuilder().setTitle('Avatar Drop');
             
-            // Re-fetch the image to pass it in the update payload, fixing the Discord double-render bug
-            const fs = require('fs');
-            const path = require('path');
-            let imgBuffer;
-            if (model.image.startsWith('http')) {
-                const imgRes = await fetch(model.image);
-                imgBuffer = await imgRes.arrayBuffer();
-            } else {
-                imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
-            }
-            const imgName = `avatar_${model.id}.jpg`;
-            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+            const payload = { content: claimMsg, embeds: [embed], components: [row] };
 
-            embed.setImage(`attachment://${imgName}`);
+            if (model.image) {
+                try {
+                    let imgBuffer;
+                    if (model.image.startsWith('http')) {
+                        const imgRes = await fetch(model.image);
+                        if (imgRes.ok) {
+                            imgBuffer = await imgRes.arrayBuffer();
+                        }
+                    } else if (fs.existsSync(path.join(__dirname, 'images', model.image))) {
+                        imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+                    }
+                    if (imgBuffer) {
+                        const imgName = `avatar_${model.id}.jpg`;
+                        const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+                        embed.setImage(`attachment://${imgName}`);
+                        payload.files = [attachment];
+                    }
+                } catch (e) {
+                    console.error('Image fetch error in claim handler:', e);
+                }
+            }
+
             embed.setFooter({ text: claimMsg });
             
-            if (claimMsg.includes('added the avatar to their inventory') && embed.data.description) {
+            if (claimMsg.includes('added the avatar to their inventory') && embed.data?.description) {
                 if (embed.data.description.includes('*Unclaimed*')) {
                     embed.data.description = embed.data.description.replace('*Unclaimed*', `<@${claimerId}>`);
                 } else {
@@ -1404,31 +1410,30 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
 
-            await interaction.editReply({ content: claimMsg, embeds: [embed], components: [row], files: [attachment] });
+            await interaction.editReply(payload);
             return;
         } catch (err) {
-            console.error(err);
-            return interaction.followUp({ content: '❌ Error claiming avatar!', ephemeral: true }).catch(() => {});
+            console.error('Error in claim handler:', err);
+            return interaction.followUp({ content: '❌ Error claiming avatar!', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
     }
 
     // ── Button: Chat Drop Claim ───────────────────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('drop_')) {
+        await interaction.deferUpdate().catch(() => {});
         const parts = interaction.customId.split('_');
         const dropType = parts[1];
 
         try {
             if (activeClaimLocks.has(interaction.message.id)) {
-                return interaction.reply({ content: '❌ Processing another claim...', ephemeral: true });
+                return interaction.followUp({ content: '❌ Processing another claim...', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
             activeClaimLocks.add(interaction.message.id);
 
-            if (interaction.message.components[0].components[0].disabled) {
+            if (interaction.message?.components?.[0]?.components?.[0]?.disabled) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Too late! Someone already claimed this drop.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Too late! Someone already claimed this drop.', flags: MessageFlags.Ephemeral }).catch(() => {});
             }
-
-            await interaction.deferUpdate();
 
             let claimerRecord = await User.findOne({ userId: interaction.user.id });
             if (!claimerRecord) claimerRecord = new User({ userId: interaction.user.id });
@@ -1445,12 +1450,10 @@ client.on('interactionCreate', async (interaction) => {
                 claimMsg = `🌟 **LUCKY!** <@${interaction.user.id}> caught the star and received **1 Gacha Token**!`;
             } else if (dropType === 'trap') {
                 if (Math.random() < 0.20) {
-                    // Cursed Drop - Bad Luck for 1 hour
                     claimerRecord.badLuckExpiresAt = new Date(Date.now() + 3600000);
                     claimMsg = `🌩️ **CURSED!** <@${interaction.user.id}> opened a cursed box and has been afflicted with **Bad Luck** for 1 hour!`;
                     embedColor = 0x8e44ad; // Purple
                 } else {
-                    // Coin Thief - 20% deduction
                     const penalty = Math.floor(claimerRecord.coins * 0.20);
                     claimerRecord.coins = Math.max(0, claimerRecord.coins - penalty);
                     claimMsg = `💥 **IT WAS A TRAP!** The bag exploded and destroyed **🪙 ${penalty} Coins** (20% of your balance)!`;
@@ -1468,7 +1471,10 @@ client.on('interactionCreate', async (interaction) => {
                 .setDisabled(true);
 
             const row = new ActionRowBuilder().addComponents(disabledButton);
-            const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+            const origEmbed = interaction.message?.embeds?.[0];
+            const embed = origEmbed 
+                ? EmbedBuilder.from(origEmbed)
+                : new EmbedBuilder().setTitle('Chat Drop');
             
             embed.setColor(embedColor);
             embed.setDescription(claimMsg);
@@ -1477,9 +1483,9 @@ client.on('interactionCreate', async (interaction) => {
             activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
-            console.error(err);
+            console.error('Error in drop_ handler:', err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.followUp({ content: '❌ Error claiming drop!', ephemeral: true }).catch(() => {});
+            return interaction.followUp({ content: '❌ Error claiming drop!', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
     }
     // ── Button: Accept Duel ───────────────────────────────────────────────────
