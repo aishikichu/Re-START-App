@@ -628,10 +628,18 @@ client.once('ready', async () => {
                 shop.colors = [generateColor(), generateColor(), generateColor()];
 
                 const badges = ['🐧', '💖', '✨', '👑', '🔥', '🌸', '💀', '👽', '👻', '💎', '⭐', '🎵', '🍙', '🎀', '🦊'];
-                const rareBadges = ['👑', '💖', '💎', '🦊', '🐧'];
+                const rareBadges = ['👑', '💖', '💎', '🦊'];
                 const emoji = badges[Math.floor(Math.random() * badges.length)];
-                const badgeRarity = rareBadges.includes(emoji) ? 'Rare' : 'Common';
-                const badgePrice = badgeRarity === 'Rare' ? (Math.floor(Math.random() * 50000) + 50000) : (Math.floor(Math.random() * 10000) + 5000);
+                let badgeRarity = 'Common';
+                let badgePrice = Math.floor(Math.random() * 10000) + 5000;
+                
+                if (emoji === '🐧') {
+                    badgeRarity = 'Legendary';
+                    badgePrice = 1000000;
+                } else if (rareBadges.includes(emoji)) {
+                    badgeRarity = 'Rare';
+                    badgePrice = Math.floor(Math.random() * 50000) + 50000;
+                }
                 shop.badge = { emoji, rarity: badgeRarity, price: badgePrice, sold: false };
                 updated = true;
             }
@@ -2787,6 +2795,10 @@ client.on('interactionCreate', async (interaction) => {
         });
 
         const b = shop.badge;
+        if (b.emoji === '🐧') {
+            b.rarity = 'Legendary';
+            b.price = 1000000;
+        }
         const bSoldText = b.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${b.price}`;
         embed.addFields({ name: `📛 [${b.rarity}] Badge Profile`, value: `${bSoldText}\nBadge: ${b.emoji}\nID: \`badge\`` });
 
@@ -2897,6 +2909,10 @@ client.on('interactionCreate', async (interaction) => {
 
             if (itemStr === 'badge') {
                 const b = shop.badge;
+                if (b.emoji === '🐧') {
+                    b.rarity = 'Legendary';
+                    b.price = 1000000;
+                }
                 if (b.sold) return interaction.editReply('❌ That badge is already SOLD OUT!');
                 if (userRecord.coins < b.price) return interaction.editReply(`❌ You need **🪙 ${b.price}**. You have **🪙 ${userRecord.coins}**.`);
                 if (userRecord.badges.includes(b.emoji)) return interaction.editReply(`❌ You already own the ${b.emoji} badge!`);
