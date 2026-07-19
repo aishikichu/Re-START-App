@@ -849,6 +849,17 @@ client.on('messageCreate', async (message) => {
 // ─── Interaction Handler ──────────────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
   try {
+    // Safely route reply() calls to editReply() if interaction is already deferred or replied
+    const _origReply = interaction.reply.bind(interaction);
+    interaction.reply = async (options) => {
+        if (interaction.deferred || interaction.replied) {
+            const opts = typeof options === 'string' ? { content: options } : { ...options };
+            delete opts.ephemeral;
+            return interaction.editReply(opts);
+        }
+        return _origReply(options);
+    };
+
     // ── Staff Approval Buttons ───────────────────────────────────────────────
     if (interaction.isButton() && (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('deny_'))) {
         const isApprove = interaction.customId.startsWith('approve_');
@@ -1788,6 +1799,11 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) return;
+
+    // Auto-defer all slash commands immediately to guarantee Discord response within 3s
+    if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply().catch(() => {});
+    }
 
     const { commandName } = interaction;
 
@@ -3129,9 +3145,11 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /gacha ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'gacha') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
-        
-        await interaction.deferReply();
+        await interaction.deferReply().catch(() => {});
+
+        if (interaction.channelId !== REBOOTH_CHANNEL_ID) {
+            return interaction.editReply(`⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`);
+        }
 
         try {
             let userRecord = await User.findOne({ userId: interaction.user.id });
@@ -3222,24 +3240,10 @@ client.on('interactionCreate', async (interaction) => {
                 ownershipText = `\n\n🧍 **Belongs to:** *Unclaimed*`;
             }
 
-            // Fetch the image from booth natively or from local disk
-            const fs = require('fs');
-            const path = require('path');
-            let imgBuffer;
-            if (model.image.startsWith('http')) {
-                const imgRes = await fetch(model.image);
-                imgBuffer = await imgRes.arrayBuffer();
-            } else {
-                imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
-            }
-            const imgName = `avatar_${model.id}.jpg`;
-            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
-
             const embed = new EmbedBuilder()
-                .setColor(colors[model.rarity])
+                .setColor(colors[model.rarity] || 0x95a5a6)
                 .setTitle(`🎰 Re:BOOTH Drop by ${interaction.user.username}${titleAdd}`)
                 .setDescription(`${descAdd}**[${model.rarity}] ${model.name}**\nValue: 🪙 ${model.value}${luckAdd}${ownershipText}`)
-                .setImage(`attachment://${imgName}`)
                 .setFooter({ text: 'Quick! Click the button to claim this avatar!' });
 
             const claimButton = new ButtonBuilder()
@@ -3250,8 +3254,33 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(claimButton);
 
+            const payload = { content: wishPing || null, embeds: [embed], components: [row] };
+
+            if (model.image) {
+                try {
+                    let imgBuffer;
+                    if (model.image.startsWith('http')) {
+                        const imgRes = await fetch(model.image);
+                        if (imgRes.ok) imgBuffer = await imgRes.arrayBuffer();
+                    } else if (fs.existsSync(path.join(__dirname, 'images', model.image))) {
+                        imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+                    }
+                    if (imgBuffer) {
+                        const imgName = `avatar_${model.id}.jpg`;
+                        const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+                        embed.setImage(`attachment://${imgName}`);
+                        payload.files = [attachment];
+                    } else if (model.image.startsWith('http')) {
+                        embed.setImage(model.image);
+                    }
+                } catch (e) {
+                    console.error('Image fetch error in gacha:', e);
+                    if (model.image.startsWith('http')) embed.setImage(model.image);
+                }
+            }
+
             await userRecord.save();
-            const replyMsg = await interaction.editReply({ content: wishPing || null, embeds: [embed], components: [row], files: [attachment] });
+            const replyMsg = await interaction.editReply(payload);
 
             setTimeout(async () => {
                 try {
@@ -3269,7 +3298,7 @@ client.on('interactionCreate', async (interaction) => {
             }, 20000);
             return;
         } catch (err) {
-            console.error(err);
+            console.error('Gacha error:', err);
             return interaction.editReply('❌ An error occurred during the Gacha roll!');
         }
     }
@@ -3371,17 +3400,34 @@ client.on('interactionCreate', async (interaction) => {
                     ownershipText = ownerMentions + (owners.length > 15 ? `... and ${owners.length - 15} more` : '');
                 }
 
-                const fs = require('fs');
-                const path = require('path');
-                let imgBuffer;
-                if (model.image.startsWith('http')) {
-                    const imgRes = await fetch(model.image);
-                    imgBuffer = await imgRes.arrayBuffer();
-                } else {
-                    imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+                const embed = new EmbedBuilder()
+                    .setColor(colors[model.rarity] || 0x95a5a6)
+                    .setTitle(`🔍 Avatar Lookup: ${model.name}`);
+
+                const payload = { embeds: [embed] };
+
+                if (model.image) {
+                    try {
+                        let imgBuffer;
+                        if (model.image.startsWith('http')) {
+                            const imgRes = await fetch(model.image);
+                            if (imgRes.ok) imgBuffer = await imgRes.arrayBuffer();
+                        } else if (fs.existsSync(path.join(__dirname, 'images', model.image))) {
+                            imgBuffer = fs.readFileSync(path.join(__dirname, 'images', model.image));
+                        }
+                        if (imgBuffer) {
+                            const imgName = `avatar_${model.id}.jpg`;
+                            const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
+                            embed.setImage(`attachment://${imgName}`);
+                            payload.files = [attachment];
+                        } else if (model.image.startsWith('http')) {
+                            embed.setImage(model.image);
+                        }
+                    } catch (e) {
+                        console.error('Image fetch error in lookup:', e);
+                        if (model.image.startsWith('http')) embed.setImage(model.image);
+                    }
                 }
-                const imgName = `avatar_${model.id}.jpg`;
-                const attachment = new AttachmentBuilder(Buffer.from(imgBuffer), { name: imgName });
 
                 let statsText = '';
                 const userRecord = await User.findOne({ userId: interaction.user.id });
@@ -3395,13 +3441,9 @@ client.on('interactionCreate', async (interaction) => {
                     statsText = `\n\n**Your RPG Stats:**\n💕 Affinity: ${Math.min(aff * 10, 100)}%\n🏃‍♂️ Speed: Lv ${spd}\n🛡️ Endurance: Lv ${end}\n🍀 Luck: Lv ${lck}\n*Use \`/upgrade\` to increase these!*`;
                 }
 
-                const embed = new EmbedBuilder()
-                    .setColor(colors[model.rarity] || 0x95a5a6)
-                    .setTitle(`🔍 Avatar Lookup: ${model.name}`)
-                    .setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n**Power:** ⚔️ ${model.power || 50}${statsText}\n\n🧍 **Belongs to:**\n${ownershipText}`)
-                    .setImage(`attachment://${imgName}`);
+                embed.setDescription(`**ID:** \`${model.id}\`\n**Rarity:** [${model.rarity}]\n**Value:** 🪙 ${model.value}\n**Power:** ⚔️ ${model.power || 50}${statsText}\n\n🧍 **Belongs to:**\n${ownershipText}`);
 
-                return interaction.editReply({ embeds: [embed], files: [attachment] });
+                return interaction.editReply(payload);
             }
 
             // If multiple matches (e.g. they searched "Maya" and got UR, SR, R, C variants)
