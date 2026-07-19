@@ -867,6 +867,15 @@ client.on('interactionCreate', async (interaction) => {
   try {
     console.log(`📥 Interaction: ${interaction.type} | command=${interaction.commandName || 'N/A'} | customId=${interaction.customId || 'N/A'} | user=${interaction.user?.username}`);
 
+    // Safely ignore deferReply() calls if interaction is already deferred or replied
+    const _origDeferReply = interaction.deferReply ? interaction.deferReply.bind(interaction) : null;
+    if (_origDeferReply) {
+        interaction.deferReply = async (options) => {
+            if (interaction.deferred || interaction.replied) return;
+            return _origDeferReply(options);
+        };
+    }
+
     // Safely route reply() calls to editReply() if interaction is already deferred or replied
     const _origReply = interaction.reply.bind(interaction);
     interaction.reply = async (options) => {
