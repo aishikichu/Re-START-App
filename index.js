@@ -45,6 +45,15 @@ mongoose.connection.once('open', async () => {
     }
 });
 
+// ─── Crash Prevention ─────────────────────────────────────────────────────────
+// Prevent the bot from crashing on unhandled errors
+process.on('unhandledRejection', (err) => {
+    console.error('⚠️ Unhandled Promise Rejection:', err);
+});
+process.on('uncaughtException', (err) => {
+    console.error('⚠️ Uncaught Exception:', err);
+});
+
 const WIDGET_CHANNEL_ID = '1525308184389222400';
 const STARBOARD_CHANNEL_ID = '1525488417864028362';
 const REBOOTH_CHANNEL_ID = '1525666791974764684';
@@ -838,6 +847,7 @@ client.on('messageCreate', async (message) => {
 
 // ─── Interaction Handler ──────────────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
+  try {
     // ── Staff Approval Buttons ───────────────────────────────────────────────
     if (interaction.isButton() && (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('deny_'))) {
         const isApprove = interaction.customId.startsWith('approve_');
@@ -1031,6 +1041,8 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.reply({ content: '❌ Too late! Someone already grabbed these coins.', ephemeral: true });
             }
 
+            await interaction.deferUpdate();
+
             let userRecord = await User.findOne({ userId: claimerId });
             if (!userRecord) userRecord = new User({ userId: claimerId });
 
@@ -1048,13 +1060,13 @@ client.on('interactionCreate', async (interaction) => {
                 .setColor(0x95a5a6)
                 .setFooter({ text: `💰 Claimed by ${interaction.user.username}` });
 
-            await interaction.update({ embeds: [embed], components: [row] });
+            await interaction.editReply({ embeds: [embed], components: [row] });
             activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.reply({ content: '❌ Error claiming coins!', ephemeral: true });
+            return interaction.followUp({ content: '❌ Error claiming coins!', ephemeral: true }).catch(() => {});
         }
     }
 
@@ -1074,6 +1086,8 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.reply({ content: '❌ Too late! Someone already grabbed this card.', ephemeral: true });
             }
 
+            await interaction.deferUpdate();
+
             let userRecord = await User.findOne({ userId: claimerId });
             if (!userRecord) userRecord = new User({ userId: claimerId });
 
@@ -1083,7 +1097,7 @@ client.on('interactionCreate', async (interaction) => {
 
             if (activeAvatarLocks.has(cardId)) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true }).catch(() => {});
             }
             activeAvatarLocks.add(cardId);
 
@@ -1095,7 +1109,7 @@ client.on('interactionCreate', async (interaction) => {
                 // Full Claim
                 if (userRecord.lastCardDropClaimDate && userRecord.lastCardDropClaimDate > oneHourAgo) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
+                    return interaction.followUp({ content: `❌ You can only claim a new dropped card once per hour! Next claim available <t:${Math.floor(new Date(userRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
                 }
                 userRecord.inventory.push(cardId);
                 userRecord.lastCardDropClaimDate = now;
@@ -1114,7 +1128,7 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor(0x95a5a6)
                     .setFooter({ text: `✨ Card claimed by ${interaction.user.username}` });
 
-                await interaction.update({ embeds: [embed], components: [row] });
+                await interaction.editReply({ embeds: [embed], components: [row] });
                 activeClaimLocks.delete(interaction.message.id);
                 return;
             } else {
@@ -1125,7 +1139,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 if (userRecord.coinSnipeCount >= 5) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
+                    return interaction.followUp({ content: `❌ You've hit your limit of 5 coin snipes per hour! Limit resets <t:${Math.floor(new Date(userRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
                 }
 
                 if (userRecord.coinSnipeCount === 0 || !userRecord.lastCoinSnipeReset) {
@@ -1150,7 +1164,7 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor(0x95a5a6)
                     .setFooter({ text: `🪙 Sniped by ${interaction.user.username} for ${snipeCoins} Coins!` });
 
-                await interaction.update({ embeds: [embed], components: [row] });
+                await interaction.editReply({ embeds: [embed], components: [row] });
                 activeClaimLocks.delete(interaction.message.id);
                 return;
             }
@@ -1160,7 +1174,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.reply({ content: '❌ Error claiming card!', ephemeral: true });
+            return interaction.followUp({ content: '❌ Error claiming card!', ephemeral: true }).catch(() => {});
         }
     }
 
@@ -1176,6 +1190,8 @@ client.on('interactionCreate', async (interaction) => {
                 activeClaimLocks.delete(interaction.message.id);
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this star.', ephemeral: true });
             }
+
+            await interaction.deferUpdate();
 
             let userRecord = await User.findOne({ userId: interaction.user.id });
             if (!userRecord) userRecord = new User({ userId: interaction.user.id });
@@ -1213,11 +1229,11 @@ client.on('interactionCreate', async (interaction) => {
                 .setColor(color)
                 .setDescription(resultMsg);
 
-            await interaction.update({ embeds: [embed], components: [row] });
+            await interaction.editReply({ embeds: [embed], components: [row] });
             return;
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: '❌ Error claiming star!', ephemeral: true });
+            return interaction.followUp({ content: '❌ Error claiming star!', ephemeral: true }).catch(() => {});
         }
     }
 
@@ -1261,6 +1277,8 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this.', ephemeral: true });
             }
 
+            await interaction.deferUpdate();
+
             // Lock the message
             activeClaimLocks.add(interaction.message.id);
             setTimeout(() => activeClaimLocks.delete(interaction.message.id), 60000);
@@ -1277,7 +1295,7 @@ client.on('interactionCreate', async (interaction) => {
             
             if (activeAvatarLocks.has(modelId)) {
                 activeClaimLocks.delete(interaction.message.id);
-                return interaction.reply({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true });
+                return interaction.followUp({ content: '❌ Someone is currently claiming this avatar! Try again in a moment.', ephemeral: true }).catch(() => {});
             }
             activeAvatarLocks.add(modelId);
 
@@ -1289,7 +1307,7 @@ client.on('interactionCreate', async (interaction) => {
                 // FULL CLAIM
                 if (claimerRecord.lastCardDropClaimDate && claimerRecord.lastCardDropClaimDate > oneHourAgo) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
+                    return interaction.followUp({ content: `❌ You can only claim a new avatar once per hour! Next claim available <t:${Math.floor(new Date(claimerRecord.lastCardDropClaimDate.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
                 }
 
                 claimerRecord.inventory.push(modelId);
@@ -1311,7 +1329,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 if (claimerRecord.coinSnipeCount >= 5) {
                     activeClaimLocks.delete(interaction.message.id);
-                    return interaction.reply({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true });
+                    return interaction.followUp({ content: `❌ You've hit your limit of 5 coin snipes/dupes per hour! Limit resets <t:${Math.floor(new Date(claimerRecord.lastCoinSnipeReset.getTime() + 60*60*1000).getTime()/1000)}:R>.`, ephemeral: true }).catch(() => {});
                 }
 
                 if (claimerRecord.coinSnipeCount === 0 || !claimerRecord.lastCoinSnipeReset) {
@@ -1386,11 +1404,11 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
 
-            await interaction.update({ content: claimMsg, embeds: [embed], components: [row], files: [attachment] });
+            await interaction.editReply({ content: claimMsg, embeds: [embed], components: [row], files: [attachment] });
             return;
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: '❌ Error claiming avatar!', ephemeral: true });
+            return interaction.followUp({ content: '❌ Error claiming avatar!', ephemeral: true }).catch(() => {});
         }
     }
 
@@ -1409,6 +1427,8 @@ client.on('interactionCreate', async (interaction) => {
                 activeClaimLocks.delete(interaction.message.id);
                 return interaction.reply({ content: '❌ Too late! Someone already claimed this drop.', ephemeral: true });
             }
+
+            await interaction.deferUpdate();
 
             let claimerRecord = await User.findOne({ userId: interaction.user.id });
             if (!claimerRecord) claimerRecord = new User({ userId: interaction.user.id });
@@ -1453,13 +1473,13 @@ client.on('interactionCreate', async (interaction) => {
             embed.setColor(embedColor);
             embed.setDescription(claimMsg);
 
-            await interaction.update({ embeds: [embed], components: [row] });
+            await interaction.editReply({ embeds: [embed], components: [row] });
             activeClaimLocks.delete(interaction.message.id);
             return;
         } catch (err) {
             console.error(err);
             activeClaimLocks.delete(interaction.message.id);
-            return interaction.reply({ content: '❌ Error claiming drop!', ephemeral: true });
+            return interaction.followUp({ content: '❌ Error claiming drop!', ephemeral: true }).catch(() => {});
         }
     }
     // ── Button: Accept Duel ───────────────────────────────────────────────────
@@ -4805,6 +4825,16 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply('❌ Error fetching the Hall of Shame data.');
         }
     }
+  } catch (err) {
+    console.error('⚠️ Unhandled interactionCreate error:', err);
+    try {
+        if (interaction.deferred || interaction.replied) {
+            await interaction.followUp({ content: '❌ Something went wrong!', ephemeral: true }).catch(() => {});
+        } else {
+            await interaction.reply({ content: '❌ Something went wrong!', ephemeral: true }).catch(() => {});
+        }
+    } catch (e) { /* ignore */ }
+  }
 });
 
 // ─── Chat XP Leveling System ──────────────────────────────────────────────────
