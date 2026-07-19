@@ -515,6 +515,10 @@ const slashCommands = [
 
 ].map(cmd => cmd.toJSON());
 
+client.on('error', err => console.error('❌ Discord Client Error:', err));
+client.on('shardError', err => console.error('❌ Discord Shard Error:', err));
+client.on('shardDisconnect', (event, id) => console.error(`⚠️ Discord Shard ${id} Disconnected:`, event));
+
 client.once('ready', async () => {
     // Auto-inject staff roles
     const initialStaffIds = ['379244614147768330', '310328207062728707', '169472794281771008', '278438243677241346', '510338423941496863'];
