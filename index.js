@@ -2710,8 +2710,8 @@ client.on('interactionCreate', async (interaction) => {
             updated = true;
         }
 
-        // Change daily cosmetics every 24 hours (86400000 ms)
-        if (!shop.lastDailyUpdate || (now - shop.lastDailyUpdate) > 86400000) {
+        // Change daily cosmetics every 24 hours (86400000 ms) or if missing
+        if (!shop.colors || !Array.isArray(shop.colors) || !shop.badge || !shop.lastDailyUpdate || (now - shop.lastDailyUpdate) > 86400000) {
             shop.lastDailyUpdate = now;
             
             // Generate 3 random colors
@@ -2797,12 +2797,12 @@ client.on('interactionCreate', async (interaction) => {
 
         embed.addFields({ name: `--- Daily Cosmetics (Refreshes in ${nextDailyUpdate} hours) ---`, value: '\u200B' });
 
-        shop.colors.forEach((c, index) => {
+        (shop.colors || []).forEach((c, index) => {
             const soldText = c.sold ? '~~(SOLD OUT)~~' : `**Cost:** 🪙 ${c.price}`;
-            embed.addFields({ name: `🎨 [${c.rarity}] Color Profile`, value: `${soldText}\nHex: \`${c.hex}\`\nID: \`color${index + 1}\``, inline: true });
+            embed.addFields({ name: `🎨 [${c.rarity || 'Common'}] Color Profile`, value: `${soldText}\nHex: \`${c.hex || '#000000'}\`\nID: \`color${index + 1}\``, inline: true });
         });
 
-        const b = shop.badge;
+        const b = shop.badge || { emoji: '🐧', rarity: 'Legendary', price: 1000000, sold: false };
         if (b.emoji === '🐧') {
             b.rarity = 'Legendary';
             b.price = 1000000;
@@ -4903,9 +4903,9 @@ client.on('interactionCreate', async (interaction) => {
     console.error('⚠️ Unhandled interactionCreate error:', err);
     try {
         if (interaction.deferred || interaction.replied) {
-            await interaction.followUp({ content: '❌ Something went wrong!', ephemeral: true }).catch(() => {});
+            await interaction.editReply({ content: '❌ An error occurred while processing your request.' }).catch(() => {});
         } else {
-            await interaction.reply({ content: '❌ Something went wrong!', ephemeral: true }).catch(() => {});
+            await interaction.reply({ content: '❌ An error occurred while processing your request.', ephemeral: true }).catch(() => {});
         }
     } catch (e) { /* ignore */ }
   }
