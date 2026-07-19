@@ -785,6 +785,10 @@ let nextCardDropThreshold = Math.floor(Math.random() * 50) + 50; // 50 to 100
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
+    if (message.content === '!ping') {
+        return message.reply(`🏓 Pong! Bot is online and connected as **${client.user.tag}** (\`${client.user.id}\`)`);
+    }
+
     // Random Coin Drop (Economy Channel Only)
     if (message.channelId === ECONOMY_CHANNEL_ID) {
         messageCountSinceDrop++;
