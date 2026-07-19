@@ -865,11 +865,6 @@ client.on('messageCreate', async (message) => {
 // ─── Interaction Handler ──────────────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
   try {
-    // Immediately defer all slash commands within 5ms to prevent 3s Discord interaction timeout
-    if (interaction.isChatInputCommand && interaction.isChatInputCommand() && !interaction.deferred && !interaction.replied) {
-        await interaction.deferReply().catch(() => {});
-    }
-
     console.log(`📥 Interaction: ${interaction.type} | command=${interaction.commandName || 'N/A'} | customId=${interaction.customId || 'N/A'} | user=${interaction.user?.username}`);
 
     // Safely ignore deferReply() calls if interaction is already deferred or replied
@@ -1831,11 +1826,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) return;
-
-    // Auto-defer all slash commands immediately to guarantee Discord response within 3s
-    if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply().catch(() => {});
-    }
 
     const { commandName } = interaction;
 
