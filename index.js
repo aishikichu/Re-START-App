@@ -2780,7 +2780,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /shop ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'shop') {
-        if (!checkChannelAllowed(interaction, ['shop', 'store', 'market', 'buy'], 'shop')) return;
+        if (!checkChannelAllowed(interaction, ['shop', 'store', 'market', 'buy'], 'shop', SHOP_CHANNEL_ID)) return;
         await interaction.deferReply();
         const userRecord = await User.findOne({ userId: interaction.user.id }) || { workSlots: 1 };
         
@@ -2835,7 +2835,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /buy ──────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'buy') {
-        if (!checkChannelAllowed(interaction, ['shop', 'store', 'market', 'buy'], 'shop')) return;
+        if (!checkChannelAllowed(interaction, ['shop', 'store', 'market', 'buy'], 'shop', SHOP_CHANNEL_ID)) return;
         
         const itemStr = interaction.options.getString('item'); // e.g. token, xpboost, color1, color2, color3, badge
         await interaction.deferReply();
@@ -3031,7 +3031,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /profile ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'profile') {
-        if (!checkChannelAllowed(interaction, ['profile', 'widget', 'user', 'stat'], 'profile')) return;
+        if (!checkChannelAllowed(interaction, ['profile', 'widget', 'user', 'stat'], 'profile', PROFILE_CHANNELS)) return;
         const targetUser = interaction.options.getUser('user') || interaction.user;
         await interaction.deferReply();
 
@@ -3183,7 +3183,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /pity ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'pity') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['gacha', 'booth', 'pity', 'summon'], 'Re:BOOTH', REBOOTH_CHANNEL_ID)) return;
         const userRecord = await User.findOne({ userId: interaction.user.id });
         const currentPity = userRecord ? (userRecord.pityCounter || 0) : 0;
         const remaining = Math.max(0, 150 - currentPity);
@@ -3192,7 +3192,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /gacha ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'gacha') {
-        if (!checkChannelAllowed(interaction, ['gacha', 'booth', 'roll', 'summon'], 'gacha')) return;
+        if (!checkChannelAllowed(interaction, ['gacha', 'booth', 'roll', 'summon'], 'gacha', REBOOTH_CHANNEL_ID)) return;
         await interaction.deferReply().catch(() => {});
 
         try {
@@ -3631,7 +3631,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /sell ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'sell') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['sell', 'gacha', 'booth'], 'Re:BOOTH', REBOOTH_CHANNEL_ID)) return;
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -3675,7 +3675,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /wish ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'wish') {
-        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['wish', 'trade', 'trading'], 'trading', TRADING_CHANNEL_ID)) return;
         
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
         await interaction.deferReply();
@@ -3740,7 +3740,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /work ─────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'work') {
-        if (!checkChannelAllowed(interaction, ['work', 'job', 'task', 'wage'], 'work')) return;
+        if (!checkChannelAllowed(interaction, ['work', 'job', 'task', 'wage'], 'work', WORK_CHANNEL_ID)) return;
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -3829,7 +3829,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /claimwork ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'claimwork') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! You can only claim your minimum wage in <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['work', 'job', 'task', 'wage'], 'work', WORK_CHANNEL_ID)) return;
         
         await interaction.deferReply();
 
@@ -4024,7 +4024,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /riskywork ────────────────────────────────────────────────────────────
     if (interaction.commandName === 'riskywork') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take your illegal business to the back alley! (Please use <#${WORK_CHANNEL_ID}>)`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['work', 'job', 'task', 'wage', 'risky'], 'work', WORK_CHANNEL_ID)) return;
         
         await interaction.deferReply();
         const avatarId = interaction.options.getString('avatar_id').toLowerCase();
@@ -4114,7 +4114,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /market ───────────────────────────────────────────────────────────────
     if (interaction.commandName === 'market') {
-        if (interaction.channelId !== REBOOTH_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Re:BOOTH commands in <#${REBOOTH_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['market', 'gacha', 'booth'], 'Re:BOOTH', [REBOOTH_CHANNEL_ID, SHOP_CHANNEL_ID])) return;
         const subCmd = interaction.options.getSubcommand();
         await interaction.deferReply();
 
@@ -4219,7 +4219,7 @@ client.on('interactionCreate', async (interaction) => {
     }
     // ── /duel ────────────────────────────────────────────────────────────────
     if (interaction.commandName === 'duel') {
-        if (interaction.channelId !== PVP_CHANNEL_ID) return interaction.reply({ content: `⚠️ Take this outside! (Please use <#${PVP_CHANNEL_ID}>)`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['pvp', 'duel', 'fight', 'battle'], 'PVP', PVP_CHANNEL_ID)) return;
         
         const opponent = interaction.options.getUser('opponent');
         const bet = interaction.options.getInteger('bet');
@@ -4296,7 +4296,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ── /working ──────────────────────────────────────────────────────────────
     if (interaction.commandName === 'working') {
-        if (interaction.channelId !== WORK_CHANNEL_ID) return interaction.reply({ content: `⚠️ Wagie! Please check your work shifts in <#${WORK_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['work', 'job', 'task', 'wage'], 'work', WORK_CHANNEL_ID)) return;
         
         await interaction.deferReply();
 
@@ -4357,7 +4357,7 @@ client.on('interactionCreate', async (interaction) => {
     // ── /trade ────────────────────────────────────────────────────────────────
 
     if (interaction.commandName === 'trade') {
-        if (interaction.channelId !== TRADING_CHANNEL_ID) return interaction.reply({ content: `⚠️ Please use Trading commands in <#${TRADING_CHANNEL_ID}>!`, ephemeral: true });
+        if (!checkChannelAllowed(interaction, ['trade', 'trading'], 'trading', TRADING_CHANNEL_ID)) return;
         
         const targetUser = interaction.options.getUser('user');
         const giveId = interaction.options.getString('give_id').toLowerCase();
