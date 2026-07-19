@@ -586,13 +586,13 @@ client.once('ready', async () => {
     console.log(`✨ Re:START bot is online as ${client.user.tag}!`);
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        const guildId = process.env.GUILD_ID;
-        if (guildId && guildId.trim() && guildId !== 'undefined') {
+        const guildId = (process.env.GUILD_ID && process.env.GUILD_ID.trim() && process.env.GUILD_ID !== 'undefined') ? process.env.GUILD_ID : '1321784821076332555';
+        if (guildId) {
             await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: slashCommands });
-            console.log(`✅ Slash commands registered to guild ${guildId}.`);
+            console.log(`✅ Slash commands registered INSTANTLY to guild ${guildId}.`);
         } else {
             await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
-            console.log('✅ Slash commands registered globally (no GUILD_ID specified).');
+            console.log('✅ Slash commands registered globally.');
         }
     } catch (err) {
         console.error('❌ Error registering slash commands:', err);
@@ -849,6 +849,8 @@ client.on('messageCreate', async (message) => {
 // ─── Interaction Handler ──────────────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
   try {
+    console.log(`📥 Interaction: ${interaction.type} | command=${interaction.commandName || 'N/A'} | customId=${interaction.customId || 'N/A'} | user=${interaction.user?.username}`);
+
     // Safely route reply() calls to editReply() if interaction is already deferred or replied
     const _origReply = interaction.reply.bind(interaction);
     interaction.reply = async (options) => {
