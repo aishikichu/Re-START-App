@@ -5164,4 +5164,11 @@ app.get('/callback', async (req, res) => {
 
 app.listen(process.env.PORT || 3000, () => {
     console.log(`🌐 Express OAuth2 server running on port ${process.env.PORT || 3000}`);
+    
+    // Keep-Alive Self-Ping for Render (Prevents Free Tier Sleep)
+    setInterval(() => {
+        fetch(`http://localhost:${process.env.PORT || 3000}/`)
+            .then(() => console.log('⏰ Keep-alive self-ping successful.'))
+            .catch(err => console.error('Keep-alive ping failed:', err.message));
+    }, 5 * 60 * 1000); // Self-ping every 5 minutes
 });
