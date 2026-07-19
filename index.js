@@ -5116,7 +5116,9 @@ if (!process.env.MONGO_URI) {
         .catch(err => console.error('❌ Failed to connect to MongoDB:', err));
 }
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN)
+    .then(() => console.log('🔑 client.login() SUCCESS! Connected to Discord Gateway as ' + client.user?.tag))
+    .catch(err => console.error('❌ client.login() FAILED:', err));
 
 // ─── OAuth2 Web Server ─────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send("Re:START Bot is running!"));
